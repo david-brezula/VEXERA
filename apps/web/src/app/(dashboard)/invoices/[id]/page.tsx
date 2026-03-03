@@ -1,122 +1,42 @@
-"use client"
-
-import { use } from "react"
+import { notFound } from "next/navigation"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { format } from "date-fns"
 import {
   ChevronLeftIcon,
   PrinterIcon,
   PencilIcon,
-  Trash2Icon,
-  CheckCircleIcon,
-  SendIcon,
-  XCircleIcon,
-  ClockIcon,
   FileTextIcon,
-  HistoryIcon,
   UploadIcon,
+  HistoryIcon,
 } from "lucide-react"
 
-import { useInvoice, useUpdateInvoiceStatus, useDeleteInvoice } from "@/hooks/use-invoices"
-import { useDocuments } from "@/hooks/use-documents"
-import { useOrganization } from "@/providers/organization-provider"
+import { getInvoice } from "@/lib/data/invoices"
+import { getDocuments } from "@/lib/data/documents"
 import { InvoiceStatusBadge } from "@/components/invoices/invoice-status-badge"
-import { DocumentUploader } from "@/components/documents/document-uploader"
+import { InvoiceActionsBar } from "@/components/invoices/invoice-actions"
+import { InvoiceDocumentsTab } from "@/components/invoices/invoice-documents-tab"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatEur } from "@vexera/utils"
 import type { InvoiceStatus } from "@vexera/types"
-import { getDocumentDownloadUrl } from "@/hooks/use-documents"
-import { queryKeys } from "@/lib/query-keys"
-import { useQueryClient } from "@tanstack/react-query"
 
-// ─── Status action config ─────────────────────────────────────────────────────
-
-type StatusAction = {
-  label: string
-  newStatus: InvoiceStatus
-  variant: "default" | "outline" | "destructive"
-  icon: React.ComponentType<{ className?: string }>
-  confirm?: boolean
-}
-
-const STATUS_ACTIONS: Record<string, StatusAction[]> = {
-  draft: [
-    { label: "Mark as sent", newStatus: "sent", variant: "default", icon: SendIcon },
-    { label: "Delete", newStatus: "cancelled", variant: "destructive", icon: Trash2Icon, confirm: true },
-  ],
-  sent: [
-    { label: "Mark as paid", newStatus: "paid", variant: "default", icon: CheckCircleIcon },
-    { label: "Mark as overdue", newStatus: "overdue", variant: "outline", icon: ClockIcon },
-    { label: "Cancel", newStatus: "cancelled", variant: "destructive", icon: XCircleIcon, confirm: true },
-  ],
-  overdue: [
-    { label: "Mark as paid", newStatus: "paid", variant: "default", icon: CheckCircleIcon },
-    { label: "Cancel", newStatus: "cancelled", variant: "destructive", icon: XCircleIcon, confirm: true },
-  ],
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
-export default function InvoiceDetailPage({
+export default async function InvoiceDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
-  const { id } = use(params)
-  const router = useRouter()
-  const queryClient = useQueryClient()
-  const { activeOrg } = useOrganization()
-  const { data: invoice, isLoading } = useInvoice(id)
-  const { data: documents } = useDocuments({ invoice_id: id })
-  const updateStatus = useUpdateInvoiceStatus()
-  const deleteInvoice = useDeleteInvoice()
+  const { id } = await params
 
-  if (isLoading) {
-    return (
-      <div className="mx-auto max-w-4xl space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    )
-  }
+  const [invoice, documents] = await Promise.all([
+    getInvoice(id),
+    getDocuments({ invoice_id: id }),
+  ])
 
-  if (!invoice) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <FileTextIcon className="size-12 text-muted-foreground mb-4" />
-        <p className="text-muted-foreground">Invoice not found</p>
-        <Button asChild className="mt-4" variant="outline">
-          <Link href="/invoices">Back to invoices</Link>
-        </Button>
-      </div>
-    )
-  }
+  if (!invoice) notFound()
 
-  const actions = STATUS_ACTIONS[invoice.status] ?? []
   const isEditable = invoice.status === "draft" || invoice.status === "sent"
-
-  async function handleStatusChange(action: StatusAction) {
-    if (action.newStatus === "cancelled") {
-      await deleteInvoice.mutateAsync(id)
-      router.push("/invoices")
-    } else {
-      await updateStatus.mutateAsync({ invoiceId: id, status: action.newStatus })
-    }
-  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -148,47 +68,11 @@ export default function InvoiceDetailPage({
               </Link>
             </Button>
           )}
-          {actions.map((action) => (
-            action.confirm ? (
-              <Dialog key={action.newStatus}>
-                <DialogTrigger asChild>
-                  <Button variant={action.variant} size="sm">
-                    <action.icon className="size-4" />
-                    {action.label}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Are you sure?</DialogTitle>
-                    <DialogDescription>
-                      This will {action.label.toLowerCase()} invoice {invoice.invoice_number}.
-                      This action cannot be easily undone.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <Button
-                      variant={action.variant}
-                      onClick={() => handleStatusChange(action)}
-                      disabled={updateStatus.isPending || deleteInvoice.isPending}
-                    >
-                      {action.label}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            ) : (
-              <Button
-                key={action.newStatus}
-                variant={action.variant}
-                size="sm"
-                onClick={() => handleStatusChange(action)}
-                disabled={updateStatus.isPending}
-              >
-                <action.icon className="size-4" />
-                {action.label}
-              </Button>
-            )
-          ))}
+          <InvoiceActionsBar
+            invoiceId={id}
+            invoiceNumber={invoice.invoice_number}
+            status={invoice.status}
+          />
         </div>
       </div>
 
@@ -201,7 +85,7 @@ export default function InvoiceDetailPage({
           </TabsTrigger>
           <TabsTrigger value="documents">
             <UploadIcon className="size-4" />
-            Documents {documents && documents.length > 0 && `(${documents.length})`}
+            Documents {documents.length > 0 && `(${documents.length})`}
           </TabsTrigger>
           <TabsTrigger value="history">
             <HistoryIcon className="size-4" />
@@ -209,30 +93,54 @@ export default function InvoiceDetailPage({
           </TabsTrigger>
         </TabsList>
 
-        {/* ── Invoice tab ────────────────────────────────────────────── */}
+        {/* ── Invoice tab ──────────────────────────────────────────────────── */}
         <TabsContent value="invoice" className="space-y-6 mt-6">
-          {/* Supplier / Customer grid */}
+          {/* Supplier / Customer */}
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Supplier (Dodávateľ)
               </p>
               <p className="font-semibold">{invoice.supplier_name}</p>
-              {invoice.supplier_ico && <p className="text-sm text-muted-foreground">IČO: {invoice.supplier_ico}</p>}
-              {invoice.supplier_dic && <p className="text-sm text-muted-foreground">DIČ: {invoice.supplier_dic}</p>}
-              {invoice.supplier_ic_dph && <p className="text-sm text-muted-foreground">IČ DPH: {invoice.supplier_ic_dph}</p>}
-              {invoice.supplier_address && <p className="text-sm text-muted-foreground">{invoice.supplier_address}</p>}
-              {invoice.supplier_iban && <p className="text-sm text-muted-foreground font-mono">IBAN: {invoice.supplier_iban}</p>}
+              {invoice.supplier_ico && (
+                <p className="text-sm text-muted-foreground">IČO: {invoice.supplier_ico}</p>
+              )}
+              {invoice.supplier_dic && (
+                <p className="text-sm text-muted-foreground">DIČ: {invoice.supplier_dic}</p>
+              )}
+              {invoice.supplier_ic_dph && (
+                <p className="text-sm text-muted-foreground">
+                  IČ DPH: {invoice.supplier_ic_dph}
+                </p>
+              )}
+              {invoice.supplier_address && (
+                <p className="text-sm text-muted-foreground">{invoice.supplier_address}</p>
+              )}
+              {invoice.supplier_iban && (
+                <p className="text-sm text-muted-foreground font-mono">
+                  IBAN: {invoice.supplier_iban}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Customer (Odberateľ)
               </p>
               <p className="font-semibold">{invoice.customer_name}</p>
-              {invoice.customer_ico && <p className="text-sm text-muted-foreground">IČO: {invoice.customer_ico}</p>}
-              {invoice.customer_dic && <p className="text-sm text-muted-foreground">DIČ: {invoice.customer_dic}</p>}
-              {invoice.customer_ic_dph && <p className="text-sm text-muted-foreground">IČ DPH: {invoice.customer_ic_dph}</p>}
-              {invoice.customer_address && <p className="text-sm text-muted-foreground">{invoice.customer_address}</p>}
+              {invoice.customer_ico && (
+                <p className="text-sm text-muted-foreground">IČO: {invoice.customer_ico}</p>
+              )}
+              {invoice.customer_dic && (
+                <p className="text-sm text-muted-foreground">DIČ: {invoice.customer_dic}</p>
+              )}
+              {invoice.customer_ic_dph && (
+                <p className="text-sm text-muted-foreground">
+                  IČ DPH: {invoice.customer_ic_dph}
+                </p>
+              )}
+              {invoice.customer_address && (
+                <p className="text-sm text-muted-foreground">{invoice.customer_address}</p>
+              )}
             </div>
           </div>
 
@@ -242,22 +150,30 @@ export default function InvoiceDetailPage({
           <div className="grid grid-cols-3 gap-4 text-sm">
             <div>
               <p className="text-muted-foreground">Issue date</p>
-              <p className="font-medium">{format(new Date(invoice.issue_date), "dd.MM.yyyy")}</p>
+              <p className="font-medium">
+                {format(new Date(invoice.issue_date), "dd.MM.yyyy")}
+              </p>
             </div>
             {invoice.delivery_date && (
               <div>
                 <p className="text-muted-foreground">Delivery date</p>
-                <p className="font-medium">{format(new Date(invoice.delivery_date), "dd.MM.yyyy")}</p>
+                <p className="font-medium">
+                  {format(new Date(invoice.delivery_date), "dd.MM.yyyy")}
+                </p>
               </div>
             )}
             <div>
               <p className="text-muted-foreground">Due date</p>
-              <p className="font-medium">{format(new Date(invoice.due_date), "dd.MM.yyyy")}</p>
+              <p className="font-medium">
+                {format(new Date(invoice.due_date), "dd.MM.yyyy")}
+              </p>
             </div>
             {invoice.payment_method && (
               <div>
                 <p className="text-muted-foreground">Payment method</p>
-                <p className="font-medium capitalize">{invoice.payment_method.replace("_", " ")}</p>
+                <p className="font-medium capitalize">
+                  {invoice.payment_method.replace("_", " ")}
+                </p>
               </div>
             )}
             {invoice.variable_symbol && (
@@ -303,7 +219,9 @@ export default function InvoiceDetailPage({
                         {formatEur(Number(item.unit_price))}
                       </td>
                       <td className="px-3 py-2 text-right">
-                        <Badge variant="outline" className="text-xs">{item.vat_rate}%</Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {item.vat_rate}%
+                        </Badge>
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">
                         {formatEur(Number(item.total))}
@@ -345,42 +263,12 @@ export default function InvoiceDetailPage({
           )}
         </TabsContent>
 
-        {/* ── Documents tab ──────────────────────────────────────────── */}
-        <TabsContent value="documents" className="space-y-4 mt-6">
-          <DocumentUploader invoiceId={id} onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.documents.forInvoice(id) })
-          }} />
-          {documents && documents.length > 0 && (
-            <div className="space-y-2">
-              {documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex items-center justify-between rounded-md border px-4 py-3"
-                >
-                  <div>
-                    <p className="font-medium text-sm">{doc.name}</p>
-                    <p className="text-xs text-muted-foreground capitalize">
-                      {doc.document_type?.replace(/_/g, " ")}
-                      {doc.file_size_bytes && ` · ${(doc.file_size_bytes / 1024).toFixed(0)} KB`}
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={async () => {
-                      const url = await getDocumentDownloadUrl(doc.file_path)
-                      window.open(url, "_blank")
-                    }}
-                  >
-                    Download
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
+        {/* ── Documents tab ────────────────────────────────────────────────── */}
+        <TabsContent value="documents" className="mt-6">
+          <InvoiceDocumentsTab invoiceId={id} initialDocuments={documents} />
         </TabsContent>
 
-        {/* ── History tab ────────────────────────────────────────────── */}
+        {/* ── History tab ──────────────────────────────────────────────────── */}
         <TabsContent value="history" className="mt-6">
           <p className="text-sm text-muted-foreground">
             Audit log for this invoice — Phase 2 feature.
