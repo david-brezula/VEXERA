@@ -1,0 +1,17 @@
+{
+  "name": "vexera",
+  "private": true,
+  "packageManager": "pnpm@10.6.5",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "test": "turbo run test",
+    "db:generate-types": "turbo run db:generate-types"
+  },
+  "devDependencies": {
+    "supabase": "^2.76.16",
+    "turbo": "^2.4.0"
+  }
+}
