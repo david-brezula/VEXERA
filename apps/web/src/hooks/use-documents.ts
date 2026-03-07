@@ -89,7 +89,21 @@ export function useUploadDocument() {
 
       if (docError) throw docError
 
-      // 4. Audit log
+      // 4. Trigger OCR asynchronously (fire-and-forget — don't await)
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const { data: { session } } = await supabase.auth.getSession()
+      if (supabaseUrl && session?.access_token) {
+        fetch(`${supabaseUrl}/functions/v1/process-ocr`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ document_id: doc.id, organization_id: activeOrg.id }),
+        }).catch((e) => console.warn("OCR trigger failed (non-fatal):", e))
+      }
+
+      // 5. Audit log
       await supabase.from("audit_logs").insert({
         organization_id: activeOrg.id,
         user_id: user.id,

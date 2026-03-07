@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { getActiveOrgId } from "@/lib/data/org"
+import { writeAuditLog } from "@/lib/services/audit.server"
 
 // ─── deleteDocumentAction ─────────────────────────────────────────────────────
 
@@ -25,6 +26,14 @@ export async function deleteDocumentAction(
       .eq("organization_id", orgId)
 
     if (error) return { error: error.message }
+
+    await writeAuditLog(supabase, {
+      organizationId: orgId,
+      userId: user.id,
+      action: "DOCUMENT_DELETED",
+      entityType: "document",
+      entityId: documentId,
+    })
 
     revalidatePath("/documents")
     revalidatePath("/")
@@ -51,6 +60,16 @@ export async function linkDocumentToInvoiceAction(
       .eq("organization_id", orgId)
 
     if (error) return { error: error.message }
+
+    const { data: { user } } = await supabase.auth.getUser()
+    await writeAuditLog(supabase, {
+      organizationId: orgId,
+      userId: user?.id ?? null,
+      action: "DOCUMENT_LINKED_TO_INVOICE",
+      entityType: "document",
+      entityId: documentId,
+      newData: { invoice_id: invoiceId },
+    })
 
     revalidatePath("/documents")
     if (invoiceId) revalidatePath(`/invoices/${invoiceId}`)
