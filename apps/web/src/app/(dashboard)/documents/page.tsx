@@ -3,8 +3,17 @@ import { FolderOpenIcon } from "lucide-react"
 
 import { getDocuments, type DocumentFilters } from "@/lib/data/documents"
 import { getActiveOrgId } from "@/lib/data/org"
-import { DocumentsGridClient } from "@/components/documents/documents-grid-client"
+import { DocumentsTableClient } from "@/components/documents/documents-table-client"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import type { DocumentStatus } from "@vexera/types"
 
 // ─── Async data component ─────────────────────────────────────────────────────
 
@@ -16,38 +25,47 @@ async function DocumentsContent({
   hasFilters: boolean
 }) {
   const documents = await getDocuments(filters)
-  return <DocumentsGridClient documents={documents} hasFilters={hasFilters} />
+  return <DocumentsTableClient documents={documents} hasFilters={hasFilters} />
 }
 
-// ─── Grid skeleton ────────────────────────────────────────────────────────────
+// ─── Table skeleton ──────────────────────────────────────────────────────────
 
-function DocumentsContentSkeleton() {
+const COLUMN_WIDTHS = ["w-8", "w-24", "w-40", "w-24", "w-24", "w-24"]
+
+function DocumentsTableSkeleton() {
   return (
-    <div className="space-y-6">
-      <div className="flex justify-end">
-        <Skeleton className="h-9 w-36" />
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-wrap gap-3">
+          <Skeleton className="h-9 w-64" />
+          <Skeleton className="h-9 w-44" />
+          <Skeleton className="h-9 w-44" />
+        </div>
+        <Skeleton className="h-9 w-28" />
       </div>
-      <div className="flex flex-wrap gap-3">
-        <Skeleton className="h-9 w-64" />
-        <Skeleton className="h-9 w-44" />
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="rounded-lg border p-4 space-y-3">
-            <div className="flex items-start gap-3">
-              <Skeleton className="size-10 rounded-md" />
-              <div className="flex-1 space-y-1.5">
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-3 w-1/2" />
-              </div>
-            </div>
-            <Skeleton className="h-5 w-24" />
-            <div className="flex gap-1">
-              <Skeleton className="h-8 w-16" />
-              <Skeleton className="h-8 w-20" />
-            </div>
-          </div>
-        ))}
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {COLUMN_WIDTHS.map((w, i) => (
+                <TableHead key={i}>
+                  <Skeleton className={`h-4 ${w}`} />
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <TableRow key={i}>
+                {COLUMN_WIDTHS.map((w, j) => (
+                  <TableCell key={j}>
+                    <Skeleton className={`h-4 ${w}`} />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
     </div>
   )
@@ -74,8 +92,17 @@ export default async function DocumentsPage({
   const filters: DocumentFilters = {
     document_type: params.type as string | undefined,
     search: params.q as string | undefined,
+    status: (params.status as DocumentStatus | "all") ?? "all",
+    date_from: params.from as string | undefined,
+    date_to: params.to as string | undefined,
   }
-  const hasFilters = !!(filters.document_type || filters.search)
+  const hasFilters = !!(
+    filters.document_type ||
+    filters.search ||
+    (filters.status && filters.status !== "all") ||
+    filters.date_from ||
+    filters.date_to
+  )
 
   return (
     <div className="space-y-6">
@@ -86,7 +113,7 @@ export default async function DocumentsPage({
         </p>
       </div>
 
-      <Suspense fallback={<DocumentsContentSkeleton />}>
+      <Suspense fallback={<DocumentsTableSkeleton />}>
         <DocumentsContent filters={filters} hasFilters={hasFilters} />
       </Suspense>
     </div>

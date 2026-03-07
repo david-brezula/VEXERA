@@ -8,6 +8,11 @@ import {
   FolderOpen,
   BookOpen,
   Settings,
+  Landmark,
+  Zap,
+  Download,
+  Inbox,
+  Users,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -17,8 +22,13 @@ import { Separator } from "@/components/ui/separator"
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/invoices", label: "Invoices", icon: FileText },
   { href: "/documents", label: "Documents", icon: FolderOpen },
+  { href: "/bank", label: "Bank", icon: Landmark },
+  { href: "/rules", label: "Rules", icon: Zap },
+  { href: "/accountant", label: "Clients", icon: Users },
+  { href: "/export", label: "Export", icon: Download },
   { href: "/ledger", label: "Ledger", icon: BookOpen },
   { href: "/settings", label: "Settings", icon: Settings },
 ]

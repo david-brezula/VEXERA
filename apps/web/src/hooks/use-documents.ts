@@ -83,6 +83,7 @@ export function useUploadDocument() {
           file_size_bytes: file.size,
           mime_type: file.type,
           uploaded_by: user.id,
+          status: "new",
         })
         .select("id")
         .single()

@@ -47,4 +47,29 @@ export const queryKeys = {
   dashboard: {
     stats: (orgId: string) => ["dashboard", orgId, "stats"] as const,
   },
+
+  rules: {
+    all: (orgId: string) => ["rules", orgId] as const,
+    list: (orgId: string, filters?: Record<string, unknown>) =>
+      ["rules", orgId, "list", filters] as const,
+  },
+
+  notifications: {
+    all: (orgId: string) => ["notifications", orgId] as const,
+    list: (orgId: string, filters?: Record<string, unknown>) =>
+      ["notifications", orgId, "list", filters] as const,
+    unreadCount: (orgId: string) => ["notifications", orgId, "unread-count"] as const,
+  },
+
+  bank: {
+    /** Parent key — invalidate to bust all bank queries for an org */
+    all: (orgId: string) => ["bank", orgId] as const,
+    /** Bank accounts */
+    accounts: (orgId: string) => ["bank", orgId, "accounts"] as const,
+    /** Bank transactions with optional filters */
+    transactions: (orgId: string, filters?: Record<string, unknown>) =>
+      ["bank", orgId, "transactions", filters] as const,
+    /** Reconciliation suggestions */
+    reconciliation: (orgId: string) => ["bank", orgId, "reconciliation"] as const,
+  },
 } as const

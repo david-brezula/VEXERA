@@ -40,6 +40,14 @@ export type AccountantClientStatus = 'pending' | 'active' | 'revoked'
 
 export type OcrStatus = 'not_queued' | 'queued' | 'processing' | 'done' | 'failed'
 
+export type DocumentStatus =
+  | 'new'
+  | 'auto_processed'
+  | 'awaiting_review'
+  | 'approved'
+  | 'awaiting_client'
+  | 'archived'
+
 export type PeppolStatus = 'not_sent' | 'pending' | 'delivered' | 'failed'
 
 export interface AccountantPermissions {
@@ -140,6 +148,76 @@ export interface Rule {
   updated_at: string
 }
 
+// Email integration
+export interface EmailConnection {
+  id: string
+  organization_id: string
+  created_by: string | null
+  email_address: string
+  google_user_id: string
+  access_token: string
+  refresh_token: string
+  token_expires_at: string   // ISO timestamp
+  is_active: boolean
+  last_polled_at: string | null
+  last_error: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface EmailImport {
+  id: string
+  organization_id: string
+  email_connection_id: string
+  gmail_message_id: string
+  gmail_thread_id: string | null
+  subject: string | null
+  sender: string | null
+  received_at: string | null
+  attachments_found: number
+  documents_created: number
+  processed_at: string
+  error_message: string | null
+  created_at: string
+}
+
+// Notifications
+export type NotificationType =
+  | 'invoice_overdue'
+  | 'document_ocr_done'
+  | 'document_ocr_failed'
+  | 'bank_import_done'
+  | 'reconciliation_match'
+  | 'rule_applied'
+  | 'export_ready'
+  | 'system'
+
+export interface Notification {
+  id: string
+  organization_id: string
+  user_id: string
+  type: NotificationType | string
+  title: string
+  body: string | null
+  entity_type: string | null
+  entity_id: string | null
+  metadata: Record<string, unknown> | null
+  is_read: boolean
+  read_at: string | null
+  created_at: string
+}
+
+export interface CreateNotificationParams {
+  organizationId: string
+  userId: string
+  type: NotificationType | string
+  title: string
+  body?: string
+  entityType?: string
+  entityId?: string
+  metadata?: Record<string, unknown>
+}
+
 // Export jobs
 export type ExportFormat = 'pohoda' | 'money_s3' | 'kros' | 'csv_generic'
 export type ExportJobStatus = 'pending' | 'processing' | 'done' | 'failed'
@@ -160,4 +238,154 @@ export interface ExportJob {
   row_count: number | null
   created_at: string
   updated_at: string
+}
+
+// ExportAdapter is defined in apps/web/src/lib/services/export/export.adapter.ts
+
+// ─── OCR ──────────────────────────────────────────────────────────────────────
+
+export interface OcrExtractedFields {
+  supplier_name: string | null
+  document_number: string | null
+  issue_date: string | null       // ISO date
+  due_date: string | null         // ISO date
+  total_amount: number | null
+  vat_amount: number | null
+  vat_rate: number | null
+  currency: string | null
+  iban: string | null
+  variable_symbol: string | null
+  raw_text: string | null
+}
+
+// ─── Document Corrections (smart categorization) ─────────────────────────────
+
+export interface DocumentCorrection {
+  id: string
+  organization_id: string
+  document_id: string
+  user_id: string | null
+  field_name: string
+  old_value: string | null
+  new_value: string
+  source: 'ocr' | 'rule' | 'manual'
+  created_at: string
+}
+
+// ─── Recurring Patterns (cash flow) ──────────────────────────────────────────
+
+export type CashFlowDirection = 'inflow' | 'outflow'
+
+export interface RecurringPattern {
+  id: string
+  organization_id: string
+  counterpart_name: string | null
+  counterpart_iban: string | null
+  typical_amount: number
+  amount_stddev: number
+  currency: string
+  direction: CashFlowDirection
+  frequency_days: number
+  last_seen_at: string | null
+  next_expected_at: string | null
+  occurrence_count: number
+  is_active: boolean
+  category: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CashFlowForecastPoint {
+  date: string           // ISO date
+  projected_balance: number
+  inflows: number
+  outflows: number
+  items: CashFlowItem[]
+}
+
+export interface CashFlowItem {
+  description: string
+  amount: number
+  direction: CashFlowDirection
+  source: 'invoice' | 'recurring' | 'scheduled'
+  confidence: number    // 0-1
+}
+
+// ─── VAT Returns ─────────────────────────────────────────────────────────────
+
+export type VatReturnStatus = 'draft' | 'final' | 'submitted'
+
+export interface VatReturn {
+  id: string
+  organization_id: string
+  period_year: number
+  period_quarter: number
+  vat_output_20: number
+  vat_output_10: number
+  vat_output_5: number
+  vat_input_20: number
+  vat_input_10: number
+  vat_input_5: number
+  total_output_vat: number
+  total_input_vat: number
+  vat_liability: number
+  taxable_base_output: number
+  taxable_base_input: number
+  status: VatReturnStatus
+  document_count: number
+  computed_at: string
+  finalized_at: string | null
+  finalized_by: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+// ─── Document Comments ───────────────────────────────────────────────────────
+
+export interface DocumentComment {
+  id: string
+  document_id: string
+  organization_id: string
+  user_id: string | null
+  content: string
+  created_at: string
+  // Joined from profiles
+  user_name?: string
+  user_email?: string
+}
+
+// ─── Accountant Dashboard ────────────────────────────────────────────────────
+
+export interface ClientSummary {
+  organization_id: string
+  organization_name: string
+  unprocessed_docs: number
+  auto_processed_docs: number
+  total_docs: number
+  auto_process_rate: number      // 0-100 percentage
+  unmatched_transactions: number
+  last_activity_at: string | null
+  days_since_activity: number
+  status: 'needs_attention' | 'on_track' | 'idle'
+}
+
+export interface AccountantDashboardData {
+  clients: ClientSummary[]
+  total_clients: number
+  total_unprocessed: number
+  total_auto_processed: number
+  overall_auto_rate: number
+  docs_processed_this_week: number
+  estimated_hours_saved: number
+}
+
+// ─── Duplicate Detection ─────────────────────────────────────────────────────
+
+export interface DuplicateCandidate {
+  document_id: string
+  document_name: string
+  match_score: number    // 0-1
+  match_reason: string   // e.g. 'Same file hash', 'Same supplier + amount + date'
+  created_at: string
 }

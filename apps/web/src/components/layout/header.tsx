@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { NotificationsBell } from "./notifications-bell"
 
 export function Header() {
   const { supabase, user } = useSupabase()
@@ -36,6 +37,7 @@ export function Header() {
     <header className="flex h-14 items-center justify-between border-b bg-background px-6">
       <div className="md:hidden font-bold text-lg">Vexera</div>
       <div className="flex-1" />
+      <NotificationsBell />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-8 w-8 rounded-full">

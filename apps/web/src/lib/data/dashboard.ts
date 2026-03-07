@@ -4,6 +4,8 @@ export type DashboardStats = {
   invoiceCount: number
   documentCount: number
   monthlyRevenue: number
+  overdueCount: number
+  overdueAmount: number
 }
 
 export async function getDashboardStats(orgId: string): Promise<DashboardStats> {
@@ -13,7 +15,9 @@ export async function getDashboardStats(orgId: string): Promise<DashboardStats> 
   startOfMonth.setDate(1)
   startOfMonth.setHours(0, 0, 0, 0)
 
-  const [invoiceResult, documentResult, revenueResult] = await Promise.all([
+  const today = new Date().toISOString().split("T")[0]
+
+  const [invoiceResult, documentResult, revenueResult, overdueResult] = await Promise.all([
     supabase
       .from("invoices")
       .select("id", { count: "exact", head: true })
@@ -34,9 +38,24 @@ export async function getDashboardStats(orgId: string): Promise<DashboardStats> 
       .eq("status", "paid")
       .gte("paid_at", startOfMonth.toISOString())
       .is("deleted_at", null),
+
+    supabase
+      .from("invoices")
+      .select("total")
+      .eq("organization_id", orgId)
+      .eq("invoice_type", "issued")
+      .in("status", ["sent", "overdue"])
+      .lt("due_date", today)
+      .is("deleted_at", null),
   ])
 
   const monthlyRevenue = (revenueResult.data ?? []).reduce(
+    (sum, row) => sum + (Number(row.total) ?? 0),
+    0
+  )
+
+  const overdueRows = overdueResult.data ?? []
+  const overdueAmount = overdueRows.reduce(
     (sum, row) => sum + (Number(row.total) ?? 0),
     0
   )
@@ -45,5 +64,7 @@ export async function getDashboardStats(orgId: string): Promise<DashboardStats> 
     invoiceCount: invoiceResult.count ?? 0,
     documentCount: documentResult.count ?? 0,
     monthlyRevenue,
+    overdueCount: overdueRows.length,
+    overdueAmount,
   }
 }
