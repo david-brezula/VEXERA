@@ -1,52 +1,23 @@
-"use client"
-
-import { useParams } from "next/navigation"
+import { notFound } from "next/navigation"
 import { format } from "date-fns"
 import { formatEur } from "@vexera/utils"
-import { PrinterIcon, XIcon } from "lucide-react"
 
-import { useInvoice } from "@/hooks/use-invoices"
-import { Skeleton } from "@/components/ui/skeleton"
+import { getInvoice } from "@/lib/data/invoices"
+import { PrintControls } from "./print-controls"
 
-export default function InvoicePrintPage() {
-  const params = useParams<{ id: string }>()
-  const { data: invoice, isLoading } = useInvoice(params.id)
+export default async function InvoicePrintPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+  const invoice = await getInvoice(id)
 
-  if (isLoading) {
-    return (
-      <div className="p-12 max-w-[210mm] mx-auto space-y-4">
-        <Skeleton className="h-12 w-64" />
-        <Skeleton className="h-48 w-full" />
-        <Skeleton className="h-32 w-full" />
-      </div>
-    )
-  }
-
-  if (!invoice) {
-    return <p className="p-8 text-red-600">Invoice not found.</p>
-  }
+  if (!invoice) notFound()
 
   return (
     <>
-      {/* Print / Close buttons — hidden when printing */}
-      <div className="no-print fixed bottom-4 right-4 flex gap-2 z-10">
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="inline-flex items-center gap-2 rounded-md bg-black px-4 py-2 text-white text-sm font-medium shadow hover:bg-gray-800"
-        >
-          <PrinterIcon className="size-4" />
-          Save as PDF
-        </button>
-        <button
-          type="button"
-          onClick={() => window.close()}
-          className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium shadow hover:bg-gray-50"
-        >
-          <XIcon className="size-4" />
-          Close
-        </button>
-      </div>
+      <PrintControls />
 
       <div className="invoice-page font-sans text-gray-900 bg-white p-12 max-w-[210mm] mx-auto">
         {/* Header */}
@@ -74,21 +45,39 @@ export default function InvoicePrintPage() {
               Supplier (Dodávateľ)
             </p>
             <p className="font-bold text-base">{invoice.supplier_name}</p>
-            {invoice.supplier_ico && <p className="text-sm text-gray-600">IČO: {invoice.supplier_ico}</p>}
-            {invoice.supplier_dic && <p className="text-sm text-gray-600">DIČ: {invoice.supplier_dic}</p>}
-            {invoice.supplier_ic_dph && <p className="text-sm text-gray-600">IČ DPH: {invoice.supplier_ic_dph}</p>}
-            {invoice.supplier_address && <p className="text-sm text-gray-600">{invoice.supplier_address}</p>}
-            {invoice.supplier_iban && <p className="text-sm font-mono text-gray-600">IBAN: {invoice.supplier_iban}</p>}
+            {invoice.supplier_ico && (
+              <p className="text-sm text-gray-600">IČO: {invoice.supplier_ico}</p>
+            )}
+            {invoice.supplier_dic && (
+              <p className="text-sm text-gray-600">DIČ: {invoice.supplier_dic}</p>
+            )}
+            {invoice.supplier_ic_dph && (
+              <p className="text-sm text-gray-600">IČ DPH: {invoice.supplier_ic_dph}</p>
+            )}
+            {invoice.supplier_address && (
+              <p className="text-sm text-gray-600">{invoice.supplier_address}</p>
+            )}
+            {invoice.supplier_iban && (
+              <p className="text-sm font-mono text-gray-600">IBAN: {invoice.supplier_iban}</p>
+            )}
           </div>
           <div className="space-y-1">
             <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">
               Customer (Odberateľ)
             </p>
             <p className="font-bold text-base">{invoice.customer_name}</p>
-            {invoice.customer_ico && <p className="text-sm text-gray-600">IČO: {invoice.customer_ico}</p>}
-            {invoice.customer_dic && <p className="text-sm text-gray-600">DIČ: {invoice.customer_dic}</p>}
-            {invoice.customer_ic_dph && <p className="text-sm text-gray-600">IČ DPH: {invoice.customer_ic_dph}</p>}
-            {invoice.customer_address && <p className="text-sm text-gray-600">{invoice.customer_address}</p>}
+            {invoice.customer_ico && (
+              <p className="text-sm text-gray-600">IČO: {invoice.customer_ico}</p>
+            )}
+            {invoice.customer_dic && (
+              <p className="text-sm text-gray-600">DIČ: {invoice.customer_dic}</p>
+            )}
+            {invoice.customer_ic_dph && (
+              <p className="text-sm text-gray-600">IČ DPH: {invoice.customer_ic_dph}</p>
+            )}
+            {invoice.customer_address && (
+              <p className="text-sm text-gray-600">{invoice.customer_address}</p>
+            )}
           </div>
         </div>
 
@@ -101,7 +90,9 @@ export default function InvoicePrintPage() {
           {invoice.delivery_date && (
             <div>
               <p className="text-xs text-gray-500 mb-1">Delivery date</p>
-              <p className="font-medium">{format(new Date(invoice.delivery_date), "dd.MM.yyyy")}</p>
+              <p className="font-medium">
+                {format(new Date(invoice.delivery_date), "dd.MM.yyyy")}
+              </p>
             </div>
           )}
           <div>
@@ -111,7 +102,9 @@ export default function InvoicePrintPage() {
           {invoice.payment_method && (
             <div>
               <p className="text-xs text-gray-500 mb-1">Payment</p>
-              <p className="font-medium capitalize">{invoice.payment_method.replace("_", " ")}</p>
+              <p className="font-medium capitalize">
+                {invoice.payment_method.replace("_", " ")}
+              </p>
             </div>
           )}
           {invoice.variable_symbol && (
@@ -140,9 +133,13 @@ export default function InvoicePrintPage() {
                 <td className="py-2 text-right tabular-nums">
                   {item.quantity} {item.unit}
                 </td>
-                <td className="py-2 text-right tabular-nums">{formatEur(Number(item.unit_price))}</td>
+                <td className="py-2 text-right tabular-nums">
+                  {formatEur(Number(item.unit_price))}
+                </td>
                 <td className="py-2 text-right">{item.vat_rate}%</td>
-                <td className="py-2 text-right tabular-nums font-medium">{formatEur(Number(item.total))}</td>
+                <td className="py-2 text-right tabular-nums font-medium">
+                  {formatEur(Number(item.total))}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -167,7 +164,9 @@ export default function InvoicePrintPage() {
         {/* Notes */}
         {invoice.notes && (
           <div className="mt-8 rounded-lg border border-gray-200 p-4 text-sm text-gray-700">
-            <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Note</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">
+              Note
+            </p>
             <p>{invoice.notes}</p>
           </div>
         )}

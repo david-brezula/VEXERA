@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { useQueryClient } from "@tanstack/react-query"
 
 import { useSupabase } from "@/providers/supabase-provider"
+import { useOrganization } from "@/providers/organization-provider"
 import {
   createOrganizationSchema,
   type CreateOrganizationFormValues,
@@ -30,8 +31,11 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form"
+import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard"
 
-export default function OnboardingPage() {
+// ─── Create org form (shown when no activeOrg exists) ─────────────────────────
+
+function CreateOrganizationForm() {
   const router = useRouter()
   const { supabase, user } = useSupabase()
   const queryClient = useQueryClient()
@@ -61,7 +65,6 @@ export default function OnboardingPage() {
 
     try {
       // Ensure profile row exists before inserting org_members (FK: user_id → profiles.id).
-      // The provider upsert is fire-and-forget so we guarantee it here.
       const { error: profileError } = await supabase.from("profiles").upsert(
         {
           id: user.id,
@@ -284,4 +287,23 @@ export default function OnboardingPage() {
       </Card>
     </div>
   )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function OnboardingPage() {
+  const { activeOrg, isLoading } = useOrganization()
+
+  // While the org state is loading, show nothing to avoid flicker
+  if (isLoading) {
+    return null
+  }
+
+  // If the user already has an org, show the setup wizard
+  if (activeOrg) {
+    return <OnboardingWizard />
+  }
+
+  // Otherwise show the org creation form
+  return <CreateOrganizationForm />
 }

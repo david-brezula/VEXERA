@@ -1,0 +1,205 @@
+"use client"
+
+import Link from "next/link"
+import {
+  Users,
+  FileText,
+  AlertCircle,
+  Clock,
+  Zap,
+  TrendingUp,
+} from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import type { AccountantDashboardData, ClientSummary } from "@vexera/types"
+
+function StatusBadge({ status }: { status: ClientSummary["status"] }) {
+  if (status === "needs_attention") {
+    return (
+      <Badge variant="destructive" className="text-xs gap-1">
+        <AlertCircle className="h-3 w-3" /> Needs attention
+      </Badge>
+    )
+  }
+  if (status === "idle") {
+    return (
+      <Badge variant="secondary" className="text-xs gap-1">
+        <Clock className="h-3 w-3" /> Idle
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="outline" className="text-xs gap-1 bg-green-50 text-green-700 border-green-200">
+      On track
+    </Badge>
+  )
+}
+
+function formatDaysAgo(days: number): string {
+  if (days < 0) return "Never"
+  if (days === 0) return "Today"
+  if (days === 1) return "Yesterday"
+  if (days < 7) return `${days}d ago`
+  if (days < 30) return `${Math.floor(days / 7)}w ago`
+  return `${Math.floor(days / 30)}mo ago`
+}
+
+export function AccountantDashboard({ data }: { data: AccountantDashboardData }) {
+  const needsAttentionCount = data.clients.filter(c => c.status === "needs_attention").length
+
+  return (
+    <div className="space-y-6">
+      {/* Summary stats */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Clients</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.total_clients}</div>
+            {needsAttentionCount > 0 && (
+              <p className="text-xs text-destructive font-medium mt-1">
+                {needsAttentionCount} need attention
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Unprocessed Docs</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.total_unprocessed}</div>
+            <p className="text-xs text-muted-foreground mt-1">Across all clients</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Auto-process Rate</CardTitle>
+            <Zap className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.overall_auto_rate}%</div>
+            <Progress value={data.overall_auto_rate} className="mt-2 h-1.5" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Hours Saved</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.estimated_hours_saved}h</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {data.docs_processed_this_week} docs this week
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Client list */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Client Overview</CardTitle>
+          <CardDescription className="text-xs">
+            Sorted by urgency — clients needing attention appear first
+          </CardDescription>
+        </CardHeader>
+        {data.clients.length === 0 ? (
+          <CardContent>
+            <div className="flex flex-col items-center py-8 text-center">
+              <Users className="h-12 w-12 text-muted-foreground mb-3 opacity-30" />
+              <h3 className="text-sm font-medium">No clients yet</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Add your first client organization to get started.
+              </p>
+            </div>
+          </CardContent>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Client</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-center">Unprocessed</TableHead>
+                <TableHead className="text-center">Auto-rate</TableHead>
+                <TableHead className="text-center">Unmatched Tx</TableHead>
+                <TableHead>Last Activity</TableHead>
+                <TableHead className="w-10" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.clients.map((client) => (
+                <TableRow key={client.organization_id}>
+                  <TableCell>
+                    <div className="font-medium">{client.organization_name}</div>
+                    <span className="text-xs text-muted-foreground">
+                      {client.total_docs} total docs
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={client.status} />
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {client.unprocessed_docs > 0 ? (
+                      <Badge variant="secondary" className="text-xs">
+                        {client.unprocessed_docs}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">0</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-sm font-medium tabular-nums">
+                        {client.auto_process_rate}%
+                      </span>
+                      <Progress
+                        value={client.auto_process_rate}
+                        className="h-1.5 w-12"
+                      />
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {client.unmatched_transactions > 0 ? (
+                      <Badge variant="outline" className="text-xs">
+                        {client.unmatched_transactions}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">0</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                    {formatDaysAgo(client.days_since_activity)}
+                  </TableCell>
+                  <TableCell>
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link href={`/inbox`}>
+                        View
+                      </Link>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+    </div>
+  )
+}

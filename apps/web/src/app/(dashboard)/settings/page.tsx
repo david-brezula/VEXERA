@@ -28,6 +28,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form"
+import { EmailConnection } from "@/components/settings/email-connection"
 
 export default function SettingsPage() {
   const { supabase } = useSupabase()
@@ -283,6 +284,11 @@ export default function SettingsPage() {
           </Form>
         </CardContent>
       </Card>
+
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold">Integrations</h2>
+        <EmailConnection />
+      </div>
     </div>
   )
 }

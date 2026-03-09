@@ -1,16 +1,18 @@
 "use client"
 
+import { useTransition } from "react"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
 import { Loader2Icon } from "lucide-react"
+import { toast } from "sonner"
 
 import {
   invoiceSchema,
   defaultInvoiceValues,
   type InvoiceFormValues,
 } from "@/lib/validations/invoice.schema"
-import { useCreateInvoice, useUpdateInvoice } from "@/hooks/use-invoices"
+import { createInvoiceAction, updateInvoiceAction } from "@/lib/actions/invoices"
 import { InvoiceItemsEditor } from "@/components/invoices/invoice-items-editor"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -49,19 +51,20 @@ export function InvoiceForm({ defaultValues, invoiceId }: Props) {
     defaultValues: defaultValues ?? defaultInvoiceValues("issued"),
   })
 
-  const createInvoice = useCreateInvoice()
-  const updateInvoice = useUpdateInvoice(invoiceId ?? "")
+  const [isPending, startTransition] = useTransition()
 
-  const isPending = isEditing ? updateInvoice.isPending : createInvoice.isPending
-
-  async function onSubmit(values: InvoiceFormValues) {
-    if (isEditing) {
-      await updateInvoice.mutateAsync(values)
-      router.push(`/invoices/${invoiceId}`)
-    } else {
-      const newId = await createInvoice.mutateAsync(values)
-      router.push(`/invoices/${newId}`)
-    }
+  function onSubmit(values: InvoiceFormValues) {
+    startTransition(async () => {
+      if (isEditing) {
+        const result = await updateInvoiceAction(invoiceId!, values)
+        if (result.error) toast.error(result.error)
+        else { toast.success("Invoice updated"); router.push(`/invoices/${invoiceId}`) }
+      } else {
+        const result = await createInvoiceAction(values)
+        if (result.error) toast.error(result.error)
+        else { toast.success("Invoice created"); router.push(`/invoices/${result.id}`) }
+      }
+    })
   }
 
   return (

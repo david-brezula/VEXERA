@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSupabase } from "./supabase-provider"
 
@@ -45,6 +46,7 @@ export function OrganizationProvider({
 }) {
   const { supabase, user } = useSupabase()
   const queryClient = useQueryClient()
+  const router = useRouter()
   const [activeOrgId, setActiveOrgId] = useState<string | null>(
     getActiveOrgIdFromCookie
   )
@@ -95,6 +97,7 @@ export function OrganizationProvider({
       setActiveOrgId(orgId)
       setActiveOrgCookie(orgId)
       queryClient.invalidateQueries()
+      router.refresh()
     },
     [queryClient]
   )

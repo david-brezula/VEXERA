@@ -1,53 +1,11 @@
 "use client"
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { useSupabase } from "@/providers/supabase-provider"
 import { useOrganization } from "@/providers/organization-provider"
 import { queryKeys } from "@/lib/query-keys"
 import type { DocumentUploadFormValues } from "@/lib/validations/document.schema"
-
-export type DocumentFilters = {
-  document_type?: string
-  invoice_id?: string
-  search?: string
-}
-
-// ─── useDocuments ─────────────────────────────────────────────────────────────
-
-export function useDocuments(filters?: DocumentFilters) {
-  const { supabase } = useSupabase()
-  const { activeOrg } = useOrganization()
-
-  return useQuery({
-    queryKey: queryKeys.documents.list(activeOrg?.id ?? "", filters),
-    queryFn: async () => {
-      if (!activeOrg) return []
-
-      let query = supabase
-        .from("documents")
-        .select("id, name, document_type, file_path, file_size_bytes, mime_type, invoice_id, ocr_status, created_at, uploaded_by")
-        .eq("organization_id", activeOrg.id)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-
-      if (filters?.document_type) {
-        query = query.eq("document_type", filters.document_type)
-      }
-      if (filters?.invoice_id) {
-        query = query.eq("invoice_id", filters.invoice_id)
-      }
-      if (filters?.search) {
-        query = query.ilike("name", `%${filters.search}%`)
-      }
-
-      const { data, error } = await query
-      if (error) throw error
-      return data ?? []
-    },
-    enabled: !!activeOrg,
-  })
-}
 
 // ─── useUploadDocument ────────────────────────────────────────────────────────
 
@@ -125,27 +83,45 @@ export function useUploadDocument() {
           file_size_bytes: file.size,
           mime_type: file.type,
           uploaded_by: user.id,
+          status: "new",
         })
         .select("id")
         .single()
 
       if (docError) throw docError
 
-      // 4. Audit log
+      // 4. Trigger OCR asynchronously (fire-and-forget — don't await)
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const { data: { session } } = await supabase.auth.getSession()
+      if (supabaseUrl && session?.access_token) {
+        fetch(`${supabaseUrl}/functions/v1/process-ocr`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ document_id: doc.id, organization_id: activeOrg.id }),
+        }).catch((e) => console.warn("OCR trigger failed (non-fatal):", e))
+      }
+
+      // 5. Audit log
       await supabase.from("audit_logs").insert({
         organization_id: activeOrg.id,
         user_id: user.id,
         action: "DOCUMENT_UPLOADED",
         entity_type: "document",
         entity_id: doc.id,
-        new_data: { name: metadata.name, document_type: metadata.document_type, file_size_bytes: file.size },
+        new_data: {
+          name: metadata.name,
+          document_type: metadata.document_type,
+          file_size_bytes: file.size,
+        },
       })
 
       return doc.id
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.documents.all(activeOrg?.id ?? "") })
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats(activeOrg?.id ?? "") })
       toast.success("Document uploaded")
     },
     onError: (error: Error) => {
@@ -154,66 +130,7 @@ export function useUploadDocument() {
   })
 }
 
-// ─── useDeleteDocument ────────────────────────────────────────────────────────
-
-export function useDeleteDocument() {
-  const { supabase, user } = useSupabase()
-  const { activeOrg } = useOrganization()
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async (documentId: string) => {
-      if (!activeOrg || !user) throw new Error("Not authenticated")
-
-      const { error } = await supabase
-        .from("documents")
-        .update({ deleted_at: new Date().toISOString() })
-        .eq("id", documentId)
-        .eq("organization_id", activeOrg.id)
-
-      if (error) throw error
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.documents.all(activeOrg?.id ?? "") })
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats(activeOrg?.id ?? "") })
-      toast.success("Document deleted")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message)
-    },
-  })
-}
-
-// ─── useLinkDocumentToInvoice ─────────────────────────────────────────────────
-
-export function useLinkDocumentToInvoice() {
-  const { supabase } = useSupabase()
-  const { activeOrg } = useOrganization()
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ documentId, invoiceId }: { documentId: string; invoiceId: string | null }) => {
-      if (!activeOrg) throw new Error("Not authenticated")
-
-      const { error } = await supabase
-        .from("documents")
-        .update({ invoice_id: invoiceId })
-        .eq("id", documentId)
-        .eq("organization_id", activeOrg.id)
-
-      if (error) throw error
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.documents.all(activeOrg?.id ?? "") })
-      toast.success("Document linked")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message)
-    },
-  })
-}
-
-// ─── useGetDownloadUrl ────────────────────────────────────────────────────────
+// ─── getDocumentDownloadUrl ───────────────────────────────────────────────────
 
 export async function getDocumentDownloadUrl(filePath: string): Promise<string> {
   const res = await fetch(`/api/storage/download?path=${encodeURIComponent(filePath)}`)
