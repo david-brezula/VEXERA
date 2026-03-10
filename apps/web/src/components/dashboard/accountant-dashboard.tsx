@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useState } from "react"
 import {
   Users,
   FileText,
@@ -8,6 +9,9 @@ import {
   Clock,
   Zap,
   TrendingUp,
+  Link2,
+  Copy,
+  Check,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -52,6 +56,42 @@ function formatDaysAgo(days: number): string {
   if (days < 7) return `${days}d ago`
   if (days < 30) return `${Math.floor(days / 7)}w ago`
   return `${Math.floor(days / 30)}mo ago`
+}
+
+function ReferralCard({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false)
+  const referralUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/register?ref=${code}`
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(referralUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <div>
+          <CardTitle className="text-sm font-medium">Referral Link</CardTitle>
+          <CardDescription className="text-xs">
+            Share this link with clients to connect them to your firm
+          </CardDescription>
+        </div>
+        <Link2 className="h-4 w-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 rounded-md bg-muted px-3 py-2 text-xs font-mono truncate">
+            {referralUrl}
+          </code>
+          <Button variant="outline" size="sm" onClick={handleCopy} className="shrink-0 gap-1.5">
+            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? "Copied" : "Copy"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
 }
 
 export function AccountantDashboard({ data }: { data: AccountantDashboardData }) {
@@ -111,6 +151,9 @@ export function AccountantDashboard({ data }: { data: AccountantDashboardData })
           </CardContent>
         </Card>
       </div>
+
+      {/* Referral link */}
+      {data.referral_code && <ReferralCard code={data.referral_code} />}
 
       {/* Client list */}
       <Card>

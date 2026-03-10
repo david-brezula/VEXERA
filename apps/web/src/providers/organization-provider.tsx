@@ -12,6 +12,7 @@ type Organization = {
   dic: string | null
   ic_dph: string | null
   subscription_plan: string
+  organization_type: string
 }
 
 type OrganizationContextValue = {
@@ -66,7 +67,8 @@ export function OrganizationProvider({
             ico,
             dic,
             ic_dph,
-            subscription_plan
+            subscription_plan,
+            organization_type
           )
         `
         )

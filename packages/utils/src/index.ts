@@ -12,3 +12,11 @@ export {
   formatDecimal,
   parseMonetary,
 } from './currency'
+
+export {
+  SLOVAK_TAX_CONFIG_2025,
+  calculateFlatExpenses,
+  calculateFreelancerTax,
+  type TaxConfig,
+  type FreelancerTaxResult,
+} from './tax'

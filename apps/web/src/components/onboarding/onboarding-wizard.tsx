@@ -11,7 +11,6 @@ import { toast } from "sonner"
 import {
   Building2,
   MapPin,
-  Users,
   FileText,
   Landmark,
   CheckCircle2,
@@ -20,8 +19,13 @@ import {
   Mail,
   Upload,
   ArrowRight,
+  Briefcase,
+  Store,
+  Calculator,
+  Loader2,
 } from "lucide-react"
 
+import type { OrganizationType } from "@vexera/types"
 import { useSupabase } from "@/providers/supabase-provider"
 import { useOrganization } from "@/providers/organization-provider"
 import { cn } from "@/lib/utils"
@@ -54,12 +58,14 @@ import {
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
-const step1Schema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters" }),
+const step1SchemaBase = z.object({
+  name: z.string().min(2, { message: "Nazov musi mat aspon 2 znaky" }),
   ico: z.string().optional(),
   dic: z.string().optional(),
   ic_dph: z.string().optional(),
   address_country: z.string().optional(),
+  tax_regime: z.enum(["pausalne_vydavky", "naklady"]).optional(),
+  dph_status: z.enum(["platca", "neplatca"]).optional(),
 })
 
 const step2Schema = z.object({
@@ -68,29 +74,23 @@ const step2Schema = z.object({
   address_zip: z.string().optional(),
   email: z
     .string()
-    .email({ message: "Enter a valid email address" })
+    .email({ message: "Zadajte platnu emailovu adresu" })
     .optional()
     .or(z.literal("")),
   phone: z.string().optional(),
 })
 
-const step3Schema = z.object({
-  email: z.string().email({ message: "Enter a valid email address" }),
-  role: z.enum(["editor", "viewer"]),
-})
-
-type Step1Values = z.infer<typeof step1Schema>
+type Step1Values = z.infer<typeof step1SchemaBase>
 type Step2Values = z.infer<typeof step2Schema>
-type Step3Values = z.infer<typeof step3Schema>
 
 // ─── Step metadata ────────────────────────────────────────────────────────────
 
 const STEPS = [
-  { id: 1, label: "Organization Profile", icon: Building2 },
-  { id: 2, label: "Contact & Address", icon: MapPin },
-  { id: 3, label: "Invite Team", icon: Users },
-  { id: 4, label: "Documents", icon: FileText },
-  { id: 5, label: "Bank", icon: Landmark },
+  { id: 0, label: "Typ organizacie", icon: Building2 },
+  { id: 1, label: "Profil organizacie", icon: Building2 },
+  { id: 2, label: "Kontakt a adresa", icon: MapPin },
+  { id: 3, label: "Dokumenty", icon: FileText },
+  { id: 4, label: "Banka", icon: Landmark },
 ] as const
 
 // ─── Progress bar ─────────────────────────────────────────────────────────────
@@ -100,13 +100,13 @@ function ProgressBar({ currentStep }: { currentStep: number }) {
     <div className="space-y-3 mb-8">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-muted-foreground">
-          Step {currentStep} of {STEPS.length} —{" "}
+          Krok {currentStep + 1} z {STEPS.length} —{" "}
           <span className="text-foreground font-semibold">
-            {STEPS[currentStep - 1]?.label}
+            {STEPS[currentStep]?.label}
           </span>
         </p>
         <p className="text-sm text-muted-foreground">
-          {Math.round(((currentStep - 1) / STEPS.length) * 100)}% complete
+          {Math.round((currentStep / STEPS.length) * 100)}% hotovo
         </p>
       </div>
       <div className="flex gap-1.5">
@@ -151,27 +151,148 @@ function ProgressBar({ currentStep }: { currentStep: number }) {
   )
 }
 
-// ─── Step 1: Organization Profile ─────────────────────────────────────────────
+// ─── Step 0: Organization Type Picker ─────────────────────────────────────────
+
+const ORG_TYPE_OPTIONS: {
+  type: OrganizationType
+  label: string
+  icon: typeof Briefcase
+  bg: string
+  color: string
+  description: string
+}[] = [
+  {
+    type: "freelancer",
+    label: "Zivnostnik",
+    icon: Briefcase,
+    bg: "bg-blue-500/10",
+    color: "text-blue-500",
+    description:
+      "SZCO, samostatne zarabajuca osoba. Moznost pausalnych vydavkov alebo skutocnych nakladov.",
+  },
+  {
+    type: "company",
+    label: "Firma",
+    icon: Store,
+    bg: "bg-violet-500/10",
+    color: "text-violet-500",
+    description:
+      "s.r.o., a.s. alebo ina pravnicka osoba. Sprava DPH a firemneho ucetnictva.",
+  },
+  {
+    type: "accounting_firm",
+    label: "Uctovnik",
+    icon: Calculator,
+    bg: "bg-emerald-500/10",
+    color: "text-emerald-500",
+    description:
+      "Uctovna firma alebo externy uctovnik. Sprava klientov a ich ucetnictva.",
+  },
+]
+
+function OrgTypePicker({
+  onSelect,
+}: {
+  onSelect: (type: OrganizationType) => void
+}) {
+  const { supabase } = useSupabase()
+  const { activeOrg } = useOrganization()
+  const [loadingType, setLoadingType] = useState<OrganizationType | null>(null)
+
+  async function handleSelect(type: OrganizationType) {
+    if (!activeOrg) return
+    setLoadingType(type)
+    try {
+      // Update organization_type on the org (may not be in generated types yet)
+      const { error } = await (supabase
+        .from("organizations")
+        .update({ organization_type: type } as any)
+        .eq("id", activeOrg.id) as any)
+
+      if (error) throw error
+
+      // For accounting firms, create the profile row
+      if (type === "accounting_firm") {
+        const { error: profileError } = await (supabase
+          .from("accounting_firm_profiles") as any)
+          .upsert(
+            { organization_id: activeOrg.id },
+            { onConflict: "organization_id" }
+          )
+
+        if (profileError) throw profileError
+      }
+
+      onSelect(type)
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Nepodarilo sa nastavit typ organizacie"
+      toast.error(message)
+    } finally {
+      setLoadingType(null)
+    }
+  }
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-3">
+      {ORG_TYPE_OPTIONS.map((option) => {
+        const Icon = option.icon
+        const isLoading = loadingType === option.type
+        return (
+          <button
+            key={option.type}
+            type="button"
+            disabled={loadingType !== null}
+            onClick={() => handleSelect(option.type)}
+            className={cn(
+              "rounded-lg border p-6 space-y-3 text-left transition-all hover:border-primary hover:shadow-md cursor-pointer",
+              "disabled:opacity-50 disabled:cursor-not-allowed",
+              isLoading && "border-primary shadow-md"
+            )}
+          >
+            <div className={cn("inline-flex rounded-md p-3", option.bg)}>
+              {isLoading ? (
+                <Loader2 className={cn("h-6 w-6 animate-spin", option.color)} />
+              ) : (
+                <Icon className={cn("h-6 w-6", option.color)} />
+              )}
+            </div>
+            <h3 className="text-base font-semibold">{option.label}</h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {option.description}
+            </p>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Step 1: Organization Profile (type-aware) ───────────────────────────────
 
 function Step1Form({
   onNext,
   orgName,
+  orgType,
 }: {
   onNext: () => void
   orgName: string
+  orgType: OrganizationType
 }) {
   const { supabase } = useSupabase()
   const { activeOrg } = useOrganization()
   const [isLoading, setIsLoading] = useState(false)
 
   const form = useForm<Step1Values>({
-    resolver: zodResolver(step1Schema) as unknown as Resolver<Step1Values>,
+    resolver: zodResolver(step1SchemaBase) as unknown as Resolver<Step1Values>,
     defaultValues: {
       name: orgName,
       ico: "",
       dic: "",
       ic_dph: "",
       address_country: "SK",
+      tax_regime: orgType === "freelancer" ? "pausalne_vydavky" : undefined,
+      dph_status: orgType === "company" ? "neplatca" : undefined,
     },
   })
 
@@ -191,11 +312,39 @@ function Step1Form({
         .eq("id", activeOrg.id)
 
       if (error) throw error
-      toast.success("Organization profile saved")
+
+      // Upsert the type-specific profile row
+      if (orgType === "freelancer") {
+        const { error: profileError } = await (supabase
+          .from("freelancer_profiles") as any)
+          .upsert(
+            {
+              organization_id: activeOrg.id,
+              tax_regime: values.tax_regime || "pausalne_vydavky",
+            },
+            { onConflict: "organization_id" }
+          )
+
+        if (profileError) throw profileError
+      } else if (orgType === "company") {
+        const { error: profileError } = await (supabase
+          .from("company_profiles") as any)
+          .upsert(
+            {
+              organization_id: activeOrg.id,
+              dph_status: values.dph_status || "neplatca",
+            },
+            { onConflict: "organization_id" }
+          )
+
+        if (profileError) throw profileError
+      }
+
+      toast.success("Profil organizacie ulozeny")
       onNext()
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to save organization profile"
+        err instanceof Error ? err.message : "Nepodarilo sa ulozit profil organizacie"
       toast.error(message)
     } finally {
       setIsLoading(false)
@@ -210,7 +359,7 @@ function Step1Form({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Company name *</FormLabel>
+              <FormLabel>Nazov organizacie *</FormLabel>
               <FormControl>
                 <Input placeholder="Acme s.r.o." {...field} />
               </FormControl>
@@ -218,6 +367,65 @@ function Step1Form({
             </FormItem>
           )}
         />
+
+        {/* Type-specific fields */}
+        {orgType === "freelancer" && (
+          <FormField
+            control={form.control}
+            name="tax_regime"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Danovy rezim</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Vyberte danovy rezim" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="pausalne_vydavky">
+                      Pausalne vydavky
+                    </SelectItem>
+                    <SelectItem value="naklady">
+                      Skutocne naklady
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  Urcuje sposob uplatnovania vydavkov pri danovom priznani.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
+        {orgType === "company" && (
+          <FormField
+            control={form.control}
+            name="dph_status"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>DPH status</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Vyberte DPH status" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="platca">Platca DPH</SelectItem>
+                    <SelectItem value="neplatca">Neplatca DPH</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  Urcuje, ci je vasa firma registrovana ako platca DPH.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <FormField
@@ -229,7 +437,7 @@ function Step1Form({
                 <FormControl>
                   <Input placeholder="12345678" maxLength={8} {...field} />
                 </FormControl>
-                <FormDescription>8-digit company ID</FormDescription>
+                <FormDescription>8-miestne ICO</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -243,25 +451,28 @@ function Step1Form({
                 <FormControl>
                   <Input placeholder="1234567890" maxLength={10} {...field} />
                 </FormControl>
-                <FormDescription>Tax ID</FormDescription>
+                <FormDescription>Danove identifikacne cislo</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name="ic_dph"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>IC DPH</FormLabel>
-                <FormControl>
-                  <Input placeholder="SK1234567890" maxLength={12} {...field} />
-                </FormControl>
-                <FormDescription>VAT ID</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {/* Hide IC DPH for freelancers */}
+          {orgType !== "freelancer" && (
+            <FormField
+              control={form.control}
+              name="ic_dph"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>IC DPH</FormLabel>
+                  <FormControl>
+                    <Input placeholder="SK1234567890" maxLength={12} {...field} />
+                  </FormControl>
+                  <FormDescription>Identifikacne cislo pre DPH</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </div>
 
         <FormField
@@ -269,20 +480,20 @@ function Step1Form({
           name="address_country"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Country</FormLabel>
+              <FormLabel>Krajina</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select country" />
+                    <SelectValue placeholder="Vyberte krajinu" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="SK">Slovakia</SelectItem>
-                  <SelectItem value="CZ">Czech Republic</SelectItem>
-                  <SelectItem value="AT">Austria</SelectItem>
-                  <SelectItem value="HU">Hungary</SelectItem>
-                  <SelectItem value="PL">Poland</SelectItem>
-                  <SelectItem value="DE">Germany</SelectItem>
+                  <SelectItem value="SK">Slovensko</SelectItem>
+                  <SelectItem value="CZ">Ceska republika</SelectItem>
+                  <SelectItem value="AT">Rakusko</SelectItem>
+                  <SelectItem value="HU">Madarsko</SelectItem>
+                  <SelectItem value="PL">Polsko</SelectItem>
+                  <SelectItem value="DE">Nemecko</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -292,7 +503,7 @@ function Step1Form({
 
         <div className="flex justify-end pt-2">
           <Button type="submit" disabled={isLoading}>
-            {isLoading ? "Saving..." : "Continue"}
+            {isLoading ? "Ukladam..." : "Pokracovat"}
             <ChevronRight className="h-4 w-4 ml-1" />
           </Button>
         </div>
@@ -341,11 +552,11 @@ function Step2Form({
         .eq("id", activeOrg.id)
 
       if (error) throw error
-      toast.success("Contact details saved")
+      toast.success("Kontaktne udaje ulozene")
       onNext()
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to save contact details"
+        err instanceof Error ? err.message : "Nepodarilo sa ulozit kontaktne udaje"
       toast.error(message)
     } finally {
       setIsLoading(false)
@@ -360,7 +571,7 @@ function Step2Form({
           name="address_street"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Street address</FormLabel>
+              <FormLabel>Ulica a cislo</FormLabel>
               <FormControl>
                 <Input placeholder="Hlavna 1" {...field} />
               </FormControl>
@@ -375,7 +586,7 @@ function Step2Form({
             name="address_city"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>City</FormLabel>
+                <FormLabel>Mesto</FormLabel>
                 <FormControl>
                   <Input placeholder="Bratislava" {...field} />
                 </FormControl>
@@ -388,7 +599,7 @@ function Step2Form({
             name="address_zip"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>ZIP code</FormLabel>
+                <FormLabel>PSC</FormLabel>
                 <FormControl>
                   <Input placeholder="811 01" {...field} />
                 </FormControl>
@@ -404,11 +615,11 @@ function Step2Form({
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Contact email</FormLabel>
+                <FormLabel>Kontaktny email</FormLabel>
                 <FormControl>
                   <Input
                     type="email"
-                    placeholder="info@company.sk"
+                    placeholder="info@firma.sk"
                     {...field}
                   />
                 </FormControl>
@@ -421,7 +632,7 @@ function Step2Form({
             name="phone"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Phone number</FormLabel>
+                <FormLabel>Telefonne cislo</FormLabel>
                 <FormControl>
                   <Input placeholder="+421 900 000 000" {...field} />
                 </FormControl>
@@ -434,10 +645,10 @@ function Step2Form({
         <div className="flex justify-between pt-2">
           <Button type="button" variant="outline" onClick={onBack}>
             <ChevronLeft className="h-4 w-4 mr-1" />
-            Back
+            Spat
           </Button>
           <Button type="submit" disabled={isLoading}>
-            {isLoading ? "Saving..." : "Continue"}
+            {isLoading ? "Ukladam..." : "Pokracovat"}
             <ChevronRight className="h-4 w-4 ml-1" />
           </Button>
         </div>
@@ -446,134 +657,9 @@ function Step2Form({
   )
 }
 
-// ─── Step 3: Invite Team Member ───────────────────────────────────────────────
+// ─── Step 3: Documents guidance ───────────────────────────────────────────────
 
-function Step3Form({
-  onNext,
-  onBack,
-}: {
-  onNext: () => void
-  onBack: () => void
-}) {
-  const { supabase, user } = useSupabase()
-  const { activeOrg } = useOrganization()
-  const [isLoading, setIsLoading] = useState(false)
-
-  const form = useForm<Step3Values>({
-    resolver: zodResolver(step3Schema) as unknown as Resolver<Step3Values>,
-    defaultValues: {
-      email: "",
-      role: "editor",
-    },
-  })
-
-  async function onSubmit(values: Step3Values) {
-    if (!activeOrg || !user) return
-    setIsLoading(true)
-    try {
-      // The placeholder DB types don't include invited_email/invited_by
-      // (added in migration 21). Cast to any to bypass stale type definitions.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from("organization_members") as any).insert({
-        organization_id: activeOrg.id,
-        user_id: user.id,
-        invited_email: values.email,
-        role: values.role,
-        invited_by: user.id,
-      })
-
-      if (error) throw error
-      toast.success(`Invitation sent to ${values.email}`)
-      onNext()
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to send invitation"
-      toast.error(message)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  return (
-    <div className="space-y-6">
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Team member email *</FormLabel>
-                <FormControl>
-                  <Input
-                    type="email"
-                    placeholder="colleague@company.sk"
-                    {...field}
-                  />
-                </FormControl>
-                <FormDescription>
-                  They will receive an email invitation to join your organization.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="role"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Role</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="editor">
-                      Editor — can create and edit records
-                    </SelectItem>
-                    <SelectItem value="viewer">
-                      Viewer — read-only access
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <div className="flex justify-between pt-2">
-            <Button type="button" variant="outline" onClick={onBack}>
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              Back
-            </Button>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={onNext}
-                className="text-muted-foreground"
-              >
-                Skip this step
-              </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Sending..." : "Send Invite"}
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
-          </div>
-        </form>
-      </Form>
-    </div>
-  )
-}
-
-// ─── Step 4: Documents guidance ───────────────────────────────────────────────
-
-function Step4Guidance({
+function Step3Guidance({
   onNext,
   onBack,
 }: {
@@ -589,9 +675,9 @@ function Step4Guidance({
   const methods = [
     {
       icon: Upload,
-      title: "Manual upload",
+      title: "Manualne nahratie",
       description:
-        "Drag and drop PDFs, JPGs, or PNGs directly from your computer.",
+        "Pretiahnte PDF, JPG alebo PNG subory priamo z vasho pocitaca.",
       color: "text-blue-500",
       bg: "bg-blue-500/10",
     },
@@ -599,15 +685,15 @@ function Step4Guidance({
       icon: Mail,
       title: "Gmail auto-import",
       description:
-        "Connect your Gmail account and we will automatically pull in invoices and receipts.",
+        "Pripojte svoj Gmail ucet a automaticky stiahneme faktury a blocky.",
       color: "text-red-500",
       bg: "bg-red-500/10",
     },
     {
       icon: ArrowRight,
-      title: "Forward by email",
+      title: "Preposlanie emailom",
       description:
-        "Forward emails with attachments to your unique Vexera inbox address.",
+        "Preposielajte emaily s prilohami na vasu unikatnu Vexera emailovu adresu.",
       color: "text-green-500",
       bg: "bg-green-500/10",
     },
@@ -638,7 +724,7 @@ function Step4Guidance({
       <div className="flex justify-between pt-2">
         <Button type="button" variant="outline" onClick={onBack}>
           <ChevronLeft className="h-4 w-4 mr-1" />
-          Back
+          Spat
         </Button>
         <div className="flex gap-2">
           <Button
@@ -647,11 +733,11 @@ function Step4Guidance({
             onClick={onNext}
             className="text-muted-foreground"
           >
-            Skip this step
+            Preskocit
           </Button>
           <Button type="button" onClick={goToDocuments}>
             <FileText className="h-4 w-4 mr-2" />
-            Go to Documents
+            Ist do Dokumentov
           </Button>
         </div>
       </div>
@@ -659,9 +745,9 @@ function Step4Guidance({
   )
 }
 
-// ─── Step 5: Bank guidance ────────────────────────────────────────────────────
+// ─── Step 4: Bank guidance ────────────────────────────────────────────────────
 
-function Step5Guidance({
+function Step4Guidance({
   onFinish,
   onBack,
 }: {
@@ -682,11 +768,11 @@ function Step5Guidance({
             <Landmark className="h-6 w-6 text-blue-500" />
           </div>
           <div className="space-y-1">
-            <h3 className="font-semibold">Import your bank statement</h3>
+            <h3 className="font-semibold">Importujte bankovy vypis</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Upload your bank statement in MT940 or CSV format. Vexera will
-              automatically match transactions to your invoices using the VS
-              (variable symbol) and amount.
+              Nahrajte bankovy vypis vo formate MT940 alebo CSV. Vexera
+              automaticky sparuje transakcie s vasimi fakturami pomocou VS
+              (variabilneho symbolu) a sumy.
             </p>
           </div>
         </div>
@@ -704,7 +790,7 @@ function Step5Guidance({
 
         <Button type="button" variant="outline" className="w-full" onClick={goToBank}>
           <Landmark className="h-4 w-4 mr-2" />
-          Go to Bank Import
+          Ist do Bankoveho importu
           <ArrowRight className="h-4 w-4 ml-auto" />
         </Button>
       </div>
@@ -712,11 +798,11 @@ function Step5Guidance({
       <div className="flex justify-between pt-2">
         <Button type="button" variant="outline" onClick={onBack}>
           <ChevronLeft className="h-4 w-4 mr-1" />
-          Back
+          Spat
         </Button>
         <Button type="button" onClick={onFinish}>
           <CheckCircle2 className="h-4 w-4 mr-2" />
-          Finish setup
+          Dokoncit nastavenie
         </Button>
       </div>
     </div>
@@ -732,21 +818,21 @@ function CompletionScreen({ onDone }: { onDone: () => void }) {
         <CheckCircle2 className="h-16 w-16 text-green-500" />
       </div>
       <div className="space-y-2">
-        <h2 className="text-2xl font-bold">You are all set!</h2>
+        <h2 className="text-2xl font-bold">Vsetko je pripravene!</h2>
         <p className="text-muted-foreground max-w-sm mx-auto">
-          Your organization is configured and ready to go. Start managing your
-          accounting with Vexera.
+          Vasa organizacia je nastavena a pripravena. Zacnite spravovat svoje
+          uctovnictvo s Vexerou.
         </p>
       </div>
       <div className="flex flex-col sm:flex-row gap-3">
         <Link href="/invoices/new">
           <Button variant="outline">
             <FileText className="h-4 w-4 mr-2" />
-            Create first invoice
+            Vytvorit prvu fakturu
           </Button>
         </Link>
         <Button onClick={onDone}>
-          Go to Dashboard
+          Ist na Dashboard
           <ArrowRight className="h-4 w-4 ml-2" />
         </Button>
       </div>
@@ -759,15 +845,21 @@ function CompletionScreen({ onDone }: { onDone: () => void }) {
 export function OnboardingWizard() {
   const router = useRouter()
   const { activeOrg } = useOrganization()
-  const [currentStep, setCurrentStep] = useState(1)
+  const [currentStep, setCurrentStep] = useState(0)
   const [isComplete, setIsComplete] = useState(false)
+  const [orgType, setOrgType] = useState<OrganizationType | null>(null)
 
   function goNext() {
-    setCurrentStep((s) => Math.min(s + 1, STEPS.length))
+    setCurrentStep((s) => Math.min(s + 1, STEPS.length - 1))
   }
 
   function goBack() {
-    setCurrentStep((s) => Math.max(s - 1, 1))
+    setCurrentStep((s) => Math.max(s - 1, 0))
+  }
+
+  function handleTypeSelected(type: OrganizationType) {
+    setOrgType(type)
+    goNext()
   }
 
   function handleFinish() {
@@ -780,25 +872,25 @@ export function OnboardingWizard() {
   }
 
   const stepTitles: Record<number, { title: string; description: string }> = {
+    0: {
+      title: "Typ organizacie",
+      description: "Vyberte typ vasej organizacie, aby sme mohli prisposobit nastavenie.",
+    },
     1: {
-      title: "Organization profile",
-      description: "Tell us about your company so invoices and documents look professional.",
+      title: "Profil organizacie",
+      description: "Povedzte nam o vasej organizacii, aby faktury a dokumenty vyzerali profesionalne.",
     },
     2: {
-      title: "Contact & address",
-      description: "Add your contact details and office address.",
+      title: "Kontakt a adresa",
+      description: "Pridajte kontaktne udaje a adresu sidla.",
     },
     3: {
-      title: "Invite a team member",
-      description: "Collaborate with colleagues by inviting them to your organization.",
+      title: "Nahrajte dokumenty",
+      description: "Vyberte sposob importu faktur a blockov.",
     },
     4: {
-      title: "Get your documents in",
-      description: "Choose how you want to import invoices and receipts.",
-    },
-    5: {
-      title: "Connect your bank",
-      description: "Import bank statements for automatic transaction matching.",
+      title: "Pripojte banku",
+      description: "Importujte bankove vypisy pre automaticke parovanie transakcii.",
     },
   }
 
@@ -826,20 +918,24 @@ export function OnboardingWizard() {
           <CardDescription>{stepInfo?.description}</CardDescription>
         </CardHeader>
         <CardContent>
-          {currentStep === 1 && (
-            <Step1Form onNext={goNext} orgName={activeOrg?.name ?? ""} />
+          {currentStep === 0 && (
+            <OrgTypePicker onSelect={handleTypeSelected} />
+          )}
+          {currentStep === 1 && orgType && (
+            <Step1Form
+              onNext={goNext}
+              orgName={activeOrg?.name ?? ""}
+              orgType={orgType}
+            />
           )}
           {currentStep === 2 && (
             <Step2Form onNext={goNext} onBack={goBack} />
           )}
           {currentStep === 3 && (
-            <Step3Form onNext={goNext} onBack={goBack} />
+            <Step3Guidance onNext={goNext} onBack={goBack} />
           )}
           {currentStep === 4 && (
-            <Step4Guidance onNext={goNext} onBack={goBack} />
-          )}
-          {currentStep === 5 && (
-            <Step5Guidance onFinish={handleFinish} onBack={goBack} />
+            <Step4Guidance onFinish={handleFinish} onBack={goBack} />
           )}
         </CardContent>
       </Card>

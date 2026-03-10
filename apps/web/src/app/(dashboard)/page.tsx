@@ -14,7 +14,9 @@ import {
   AlertCircle,
 } from "lucide-react"
 
-import { getActiveOrgId } from "@/lib/data/org"
+import { redirect } from "next/navigation"
+import { getActiveOrgId, getActiveOrg } from "@/lib/data/org"
+import { FreelancerDashboard } from "@/components/dashboard/freelancer-dashboard"
 import { getDashboardStats, type DashboardStats } from "@/lib/data/dashboard"
 import { getFinancialStats } from "@/lib/data/financial-stats"
 import { getCashFlowData } from "@/lib/data/cashflow"
@@ -313,9 +315,9 @@ async function VatSection({ orgId }: { orgId: string }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
-  const orgId = await getActiveOrgId()
+  const org = await getActiveOrg()
 
-  if (!orgId) {
+  if (!org) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
@@ -330,6 +332,18 @@ export default async function DashboardPage() {
       </div>
     )
   }
+
+  // Route to type-specific dashboards
+  if (org.organization_type === "accounting_firm") {
+    redirect("/accountant")
+  }
+
+  if (org.organization_type === "freelancer") {
+    return <FreelancerDashboard orgId={org.id} />
+  }
+
+  // Company dashboard (default) — existing content below
+  const orgId = org.id
 
   return (
     <div className="space-y-8 max-w-7xl">

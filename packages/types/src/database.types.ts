@@ -62,6 +62,7 @@ export interface Database {
           logo_url: string | null
           logo_path: string | null
           subscription_plan: string
+          organization_type: string
           storage_used_bytes: number
           peppol_endpoint_id: string | null
           peppol_scheme: string | null
@@ -87,6 +88,7 @@ export interface Database {
           logo_url?: string | null
           logo_path?: string | null
           subscription_plan?: string
+          organization_type?: string
           storage_used_bytes?: number
           peppol_endpoint_id?: string | null
           peppol_scheme?: string | null
@@ -111,6 +113,7 @@ export interface Database {
           logo_url?: string | null
           logo_path?: string | null
           subscription_plan?: string
+          organization_type?: string
           storage_used_bytes?: number
           peppol_endpoint_id?: string | null
           peppol_scheme?: string | null
@@ -207,6 +210,72 @@ export interface Database {
           status?: string
           permissions?: Json
           revoked_at?: string | null
+        }
+        Relationships: []
+      }
+      freelancer_profiles: {
+        Row: {
+          id: string
+          organization_id: string
+          ico: string | null
+          tax_regime: string
+          registered_dph: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          ico?: string | null
+          tax_regime: string
+          registered_dph?: boolean
+          created_at?: string
+        }
+        Update: {
+          ico?: string | null
+          tax_regime?: string
+          registered_dph?: boolean
+        }
+        Relationships: []
+      }
+      company_profiles: {
+        Row: {
+          id: string
+          organization_id: string
+          ico: string | null
+          ic_dph: string | null
+          dph_status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          ico?: string | null
+          ic_dph?: string | null
+          dph_status: string
+          created_at?: string
+        }
+        Update: {
+          ico?: string | null
+          ic_dph?: string | null
+          dph_status?: string
+        }
+        Relationships: []
+      }
+      accounting_firm_profiles: {
+        Row: {
+          id: string
+          organization_id: string
+          referral_code: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          referral_code?: string
+          created_at?: string
+        }
+        Update: {
+          referral_code?: string
         }
         Relationships: []
       }
