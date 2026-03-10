@@ -47,3 +47,6 @@ coverage/
 
 # Claude
 .claude/
+
+# Worktrees
+.worktrees/
