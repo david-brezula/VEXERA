@@ -102,6 +102,13 @@ export async function getAccountantDashboard(
   // 7. Estimated hours saved: auto_processed * 3 min / 60
   const estimatedHoursSaved = Math.round((totalAutoProcessed * 3) / 60 * 100) / 100
 
+  // 8. Fetch referral code from accounting_firm_profiles
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: firmProfile } = await (supabase.from("accounting_firm_profiles") as any)
+    .select("referral_code")
+    .eq("organization_id", orgId)
+    .single()
+
   return {
     clients,
     total_clients: clients.length,
@@ -110,6 +117,7 @@ export async function getAccountantDashboard(
     overall_auto_rate: Math.round(overallAutoRate * 100) / 100,
     docs_processed_this_week: docsProcessedThisWeek,
     estimated_hours_saved: estimatedHoursSaved,
+    referral_code: firmProfile?.referral_code ?? null,
   }
 }
 
@@ -124,6 +132,7 @@ function emptyDashboard(): AccountantDashboardData {
     overall_auto_rate: 0,
     docs_processed_this_week: 0,
     estimated_hours_saved: 0,
+    referral_code: null,
   }
 }
 

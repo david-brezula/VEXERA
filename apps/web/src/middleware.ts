@@ -22,6 +22,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Authenticated user with no active org: redirect to onboarding
+  if (
+    user &&
+    !isPublicRoute &&
+    request.nextUrl.pathname !== "/onboarding" &&
+    !request.nextUrl.pathname.startsWith("/api/") &&
+    !request.cookies.get("active_organization_id")?.value
+  ) {
+    const url = request.nextUrl.clone()
+    url.pathname = "/onboarding"
+    return NextResponse.redirect(url)
+  }
+
   return supabaseResponse
 }
 

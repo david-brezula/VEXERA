@@ -38,6 +38,35 @@ export type InvitationStatus = 'pending' | 'accepted' | 'expired' | 'revoked'
 
 export type AccountantClientStatus = 'pending' | 'active' | 'revoked'
 
+export type OrganizationType = 'freelancer' | 'company' | 'accounting_firm'
+export type TaxRegime = 'pausalne_vydavky' | 'naklady'
+export type DphStatus = 'platca' | 'neplatca'
+
+export interface FreelancerProfile {
+  id: string
+  organization_id: string
+  ico: string | null
+  tax_regime: TaxRegime
+  registered_dph: boolean
+  created_at: string
+}
+
+export interface CompanyProfile {
+  id: string
+  organization_id: string
+  ico: string | null
+  ic_dph: string | null
+  dph_status: DphStatus
+  created_at: string
+}
+
+export interface AccountingFirmProfile {
+  id: string
+  organization_id: string
+  referral_code: string
+  created_at: string
+}
+
 export type OcrStatus = 'not_queued' | 'queued' | 'processing' | 'done' | 'failed'
 
 export type DocumentStatus =
@@ -378,6 +407,7 @@ export interface AccountantDashboardData {
   overall_auto_rate: number
   docs_processed_this_week: number
   estimated_hours_saved: number
+  referral_code: string | null
 }
 
 // ─── Duplicate Detection ─────────────────────────────────────────────────────
