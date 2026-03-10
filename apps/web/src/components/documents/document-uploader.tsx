@@ -130,10 +130,10 @@ export function DocumentUploader({ invoiceId, onSuccess }: Props) {
           onClick={() => inputRef.current?.click()}
           onKeyDown={(e) => e.key === "Enter" && inputRef.current?.click()}
           className={cn(
-            "flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 cursor-pointer transition-colors",
+            "flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 cursor-pointer transition-all duration-200 backdrop-blur-sm",
             isDragging
-              ? "border-primary bg-primary/5"
-              : "border-border hover:border-primary/50 hover:bg-muted/30"
+              ? "border-primary bg-primary/10 shadow-lg"
+              : "border-border hover:border-primary/50 hover:bg-white/40 dark:hover:bg-white/5"
           )}
         >
           {file ? (

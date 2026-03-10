@@ -217,7 +217,7 @@ export function InvoiceItemsEditor({ control }: Props) {
       </Button>
 
       {/* Totals summary */}
-      <div className="mt-4 ml-auto w-64 space-y-1 rounded-lg border p-4 text-sm">
+      <div className="mt-4 ml-auto w-64 space-y-1 rounded-lg border bg-card backdrop-blur-xl p-4 text-sm">
         <div className="flex justify-between text-muted-foreground">
           <span>Subtotal (net)</span>
           <span className="tabular-nums">{formatEur(subtotal)}</span>

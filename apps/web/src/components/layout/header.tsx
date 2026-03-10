@@ -63,7 +63,7 @@ export function Header() {
   }
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-border bg-background/80 backdrop-blur-sm px-6 shrink-0">
+    <header className="flex h-14 items-center justify-between border-b border-[var(--glass-border)] bg-background/70 backdrop-blur-xl px-6 shrink-0">
       {/* Mobile logo / Page title */}
       <div className="flex items-center gap-3">
         <span className="md:hidden font-bold text-base">Vexera</span>

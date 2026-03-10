@@ -45,7 +45,7 @@ interface StatCardConfig {
 
 function StatCard({ title, value, subtitle, icon: Icon, iconBg, iconColor, valueColor }: StatCardConfig) {
   return (
-    <Card className="relative overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+    <Card className="relative overflow-hidden hover:shadow-xl hover:bg-white/80 dark:hover:bg-white/8 transition-all duration-200">
       <CardContent className="p-6">
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
@@ -157,7 +157,7 @@ function QuickActions() {
               variant={action.primary ? "default" : "outline"}
               className={cn(
                 "gap-1.5 font-medium",
-                !action.primary && "bg-background hover:bg-accent"
+                !action.primary && "bg-white/50 dark:bg-white/5 backdrop-blur-sm hover:bg-white/70 dark:hover:bg-white/10"
               )}
             >
               <action.icon className="h-3.5 w-3.5" />
@@ -180,7 +180,7 @@ function FeatureCards() {
       </h2>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {/* Bank */}
-        <Card className="shadow-sm hover:shadow-md transition-all duration-200 group">
+        <Card className="hover:shadow-xl hover:bg-white/80 dark:hover:bg-white/8 transition-all duration-200 group cursor-pointer">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 group-hover:bg-blue-500/15 transition-colors">
@@ -219,7 +219,7 @@ function FeatureCards() {
         </Card>
 
         {/* Rules */}
-        <Card className="shadow-sm hover:shadow-md transition-all duration-200 group">
+        <Card className="hover:shadow-xl hover:bg-white/80 dark:hover:bg-white/8 transition-all duration-200 group cursor-pointer">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 group-hover:bg-violet-500/15 transition-colors">
@@ -252,7 +252,7 @@ function FeatureCards() {
         </Card>
 
         {/* Export */}
-        <Card className="shadow-sm hover:shadow-md transition-all duration-200 group">
+        <Card className="hover:shadow-xl hover:bg-white/80 dark:hover:bg-white/8 transition-all duration-200 group cursor-pointer">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 group-hover:bg-emerald-500/15 transition-colors">

@@ -143,7 +143,7 @@ export function BankTransactionsTable({ matchStatus, bankAccountId }: Props) {
   }
 
   return (
-    <div className="rounded-md border">
+    <div className="rounded-md border bg-card backdrop-blur-xl">
       <Table>
         <TableHeader>
           <TableRow>
