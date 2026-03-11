@@ -35,6 +35,7 @@ export const SLOVAK_TAX_CONFIG_2025: TaxConfig = {
 
 export interface FreelancerTaxResult {
   expenseDeduction: number
+  insuranceDeduction: number
   taxBase: number
   estimatedTax: number
   socialMonthly: number
@@ -72,15 +73,15 @@ export function calculateFreelancerTax(
   expenses: number,
   useFlatExpenses: boolean,
   config: TaxConfig,
+  paidInsurance?: { social: number; health: number },
 ): FreelancerTaxResult {
   const expenseDeduction = useFlatExpenses
     ? calculateFlatExpenses(income, config)
     : expenses
 
   const profitBeforeNezdanitelna = Math.max(0, income - expenseDeduction)
-  const taxBase = Math.max(0, profitBeforeNezdanitelna - config.nezdanitelnaČiastka)
-  const estimatedTax = calculateTax(taxBase, config)
 
+  // Calculate odvody from assessment base (independent of tax base)
   const annualAssessmentBase = profitBeforeNezdanitelna / 2
   const monthlyAssessmentBase = annualAssessmentBase / config.assessmentMonths
 
@@ -93,8 +94,24 @@ export function calculateFreelancerTax(
     round2(monthlyAssessmentBase * config.healthRate)
   )
 
+  // Determine insurance deduction from tax base
+  let insuranceDeduction: number
+  if (paidInsurance) {
+    insuranceDeduction = paidInsurance.social + paidInsurance.health
+  } else if (useFlatExpenses) {
+    // Pausalne vydavky: estimate annual insurance on top of flat-rate deduction
+    insuranceDeduction = round2((socialMonthly + healthMonthly) * config.assessmentMonths)
+  } else {
+    // Skutocne naklady: assume insurance is already included in expenses
+    insuranceDeduction = 0
+  }
+
+  const taxBase = Math.max(0, profitBeforeNezdanitelna - insuranceDeduction - config.nezdanitelnaČiastka)
+  const estimatedTax = calculateTax(taxBase, config)
+
   return {
     expenseDeduction: round2(expenseDeduction),
+    insuranceDeduction: round2(insuranceDeduction),
     taxBase: round2(taxBase),
     estimatedTax,
     socialMonthly,

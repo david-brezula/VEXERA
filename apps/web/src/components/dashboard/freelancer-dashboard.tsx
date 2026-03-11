@@ -36,6 +36,11 @@ async function TaxMeterCard({ orgId }: { orgId: string }) {
           <p className="text-xs text-muted-foreground mt-1">
             Zaklad dane: {formatEur(taxResult.taxBase)}
           </p>
+          {taxResult.insuranceDeduction > 0 && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Odpocet odvodov: {formatEur(taxResult.insuranceDeduction)}
+            </p>
+          )}
         </CardContent>
       </Card>
 

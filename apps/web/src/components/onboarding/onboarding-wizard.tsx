@@ -868,7 +868,7 @@ export function OnboardingWizard() {
   }
 
   function handleDone() {
-    router.push("/")
+    router.push("/dashboard")
   }
 
   const stepTitles: Record<number, { title: string; description: string }> = {

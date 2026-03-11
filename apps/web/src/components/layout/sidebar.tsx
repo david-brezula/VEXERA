@@ -25,7 +25,7 @@ const navGroups = [
   {
     label: "Main",
     items: [
-      { href: "/", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/inbox", label: "Inbox", icon: Inbox },
     ],
   },
@@ -61,7 +61,7 @@ const bottomItems = [
 
 function Logo() {
   return (
-    <Link href="/" className="flex items-center gap-2.5 group">
+    <Link href="/dashboard" className="flex items-center gap-2.5 group">
       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary shadow-sm group-hover:opacity-90 transition-opacity">
         <svg
           width="16"
@@ -122,7 +122,7 @@ export function Sidebar() {
   const pathname = usePathname()
 
   function isActive(href: string) {
-    return href === "/" ? pathname === "/" : pathname.startsWith(href)
+    return href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href)
   }
 
   return (

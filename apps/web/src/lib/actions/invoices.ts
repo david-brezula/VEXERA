@@ -223,6 +223,7 @@ export async function updateInvoiceAction(
 
     revalidatePath("/invoices")
     revalidatePath(`/invoices/${invoiceId}`)
+    revalidatePath("/")
     return {}
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Unexpected error" }
@@ -266,6 +267,7 @@ export async function updateInvoiceStatusAction(
 
     revalidatePath("/invoices")
     revalidatePath(`/invoices/${invoiceId}`)
+    revalidatePath("/")
     return {}
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Unexpected error" }

@@ -69,7 +69,7 @@ export async function calculateVatReturn(
   // 2. Also get invoices for the same period (may not have documents)
   const { data: invoices, error: invErr } = await supabase
     .from("invoices")
-    .select("id, invoice_type, total, vat_amount, vat_rate, issue_date")
+    .select("id, invoice_type, total, vat_amount, issue_date")
     .eq("organization_id", orgId)
     .gte("issue_date", start)
     .lte("issue_date", end)
@@ -83,10 +83,25 @@ export async function calculateVatReturn(
     invoice_type: string | null
     total: number | null
     vat_amount: number | null
-    vat_rate: number | null
     issue_date: string | null
   }
   const invRows = (invoices ?? []) as InvRow[]
+
+  // 2b. Get invoice items with per-line VAT rates for proper bucketing
+  const invoiceIds = invRows.map(i => i.id)
+  const invoiceTypeMap = new Map(invRows.map(i => [i.id, i.invoice_type]))
+
+  type ItemRow = { invoice_id: string; vat_rate: number | null; vat_amount: number | null }
+  let itemRows: ItemRow[] = []
+  if (invoiceIds.length > 0) {
+    const { data: items, error: itemsErr } = await supabase
+      .from("invoice_items")
+      .select("invoice_id, vat_rate, vat_amount")
+      .in("invoice_id", invoiceIds)
+    if (itemsErr)
+      throw new Error(`Failed to fetch invoice items: ${itemsErr.message}`)
+    itemRows = (items ?? []) as ItemRow[]
+  }
 
   // 3. Accumulate VAT by rate and direction
   //    Output = invoice_issued documents / issued invoices
@@ -129,21 +144,33 @@ export async function calculateVatReturn(
     }
   }
 
-  // Process invoices that don't already have a processed document
+  // Process invoice-level totals for taxable base (skip already-processed documents)
   for (const inv of invRows) {
     if (processedIds.has(inv.id)) continue
     const vatAmount = Number(inv.vat_amount) || 0
     const total = Number(inv.total) || 0
-    const rate = Number(inv.vat_rate) || 20
     const isOutput = inv.invoice_type === "issued"
 
     if (isOutput) {
       vatBuckets.base_output += total - vatAmount
+    } else {
+      vatBuckets.base_input += total - vatAmount
+    }
+  }
+
+  // Process invoice items with actual per-line VAT rates for bucketing
+  for (const item of itemRows) {
+    // Skip items belonging to invoices already processed via documents
+    if (processedIds.has(item.invoice_id)) continue
+    const vatAmount = Number(item.vat_amount) || 0
+    const rate = Number(item.vat_rate) || 20
+    const isOutput = invoiceTypeMap.get(item.invoice_id) === "issued"
+
+    if (isOutput) {
       if (rate === 20) vatBuckets.output_20 += vatAmount
       else if (rate === 10) vatBuckets.output_10 += vatAmount
       else if (rate === 5) vatBuckets.output_5 += vatAmount
     } else {
-      vatBuckets.base_input += total - vatAmount
       if (rate === 20) vatBuckets.input_20 += vatAmount
       else if (rate === 10) vatBuckets.input_10 += vatAmount
       else if (rate === 5) vatBuckets.input_5 += vatAmount
