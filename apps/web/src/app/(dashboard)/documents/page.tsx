@@ -4,6 +4,7 @@ import { FolderOpenIcon } from "lucide-react"
 import { getDocuments, type DocumentFilters } from "@/lib/data/documents"
 import { getActiveOrgId } from "@/lib/data/org"
 import { DocumentsTableClient } from "@/components/documents/documents-table-client"
+import { PaginationControls } from "@/components/ui/pagination-controls"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -20,12 +21,19 @@ import type { DocumentStatus } from "@vexera/types"
 async function DocumentsContent({
   filters,
   hasFilters,
+  page,
 }: {
   filters: DocumentFilters
   hasFilters: boolean
+  page: number
 }) {
-  const documents = await getDocuments(filters)
-  return <DocumentsTableClient documents={documents} hasFilters={hasFilters} />
+  const result = await getDocuments(filters, { page })
+  return (
+    <>
+      <DocumentsTableClient documents={result.data} hasFilters={hasFilters} />
+      <PaginationControls page={result.page} totalPages={result.totalPages} total={result.total} />
+    </>
+  )
 }
 
 // ─── Table skeleton ──────────────────────────────────────────────────────────
@@ -114,7 +122,7 @@ export default async function DocumentsPage({
       </div>
 
       <Suspense fallback={<DocumentsTableSkeleton />}>
-        <DocumentsContent filters={filters} hasFilters={hasFilters} />
+        <DocumentsContent filters={filters} hasFilters={hasFilters} page={Number(params.page) || 1} />
       </Suspense>
     </div>
   )

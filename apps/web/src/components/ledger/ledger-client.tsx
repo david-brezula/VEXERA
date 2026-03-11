@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react"
 import { useRouter } from "next/navigation"
+import { useQuery } from "@tanstack/react-query"
 import {
   BookOpen,
   Plus,
@@ -19,6 +20,7 @@ import {
   reverseLedgerEntryAction,
   deleteLedgerEntryAction,
   batchPostEntriesAction,
+  fetchBalancesAction,
 } from "@/lib/actions/ledger"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -159,6 +161,15 @@ export function LedgerClient({
   const currentYear = new Date().getFullYear()
   const [balanceYear, setBalanceYear] = useState(String(currentYear))
   const [balanceMonth, setBalanceMonth] = useState("all")
+
+  const yearNum = balanceYear ? Number(balanceYear) : undefined
+  const monthNum = balanceMonth !== "all" ? Number(balanceMonth) : undefined
+
+  const { data: currentBalances } = useQuery({
+    queryKey: ["ledger-balances", yearNum, monthNum],
+    queryFn: () => fetchBalancesAction(yearNum, monthNum),
+    initialData: balances,
+  })
 
   // New entry dialog state
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -323,14 +334,14 @@ export function LedgerClient({
   // ── Balance totals ────────────────────────────────────────────────────────
 
   const balanceTotals = useMemo(() => {
-    return balances.reduce(
+    return (currentBalances ?? []).reduce(
       (acc, b) => ({
         debit: acc.debit + b.debit_total,
         credit: acc.credit + b.credit_total,
       }),
       { debit: 0, credit: 0 }
     )
-  }, [balances])
+  }, [currentBalances])
 
   // ── Active accounts for selects ───────────────────────────────────────────
 
@@ -814,7 +825,7 @@ export function LedgerClient({
           </Select>
         </div>
 
-        {balances.length === 0 ? (
+        {(currentBalances ?? []).length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-md border border-dashed p-16 text-center">
             <BookOpen className="size-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold">No balance data</h3>
@@ -836,7 +847,7 @@ export function LedgerClient({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {balances.map((b) => (
+                {(currentBalances ?? []).map((b) => (
                   <TableRow key={b.account_number}>
                     <TableCell className="font-mono text-sm">
                       {b.account_number}

@@ -17,6 +17,7 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { exchangeCodeForTokens } from "@/lib/services/gmail.service"
+import { encrypt } from "@/lib/crypto"
 import { writeAuditLog } from "@/lib/services/audit.server"
 
 const SETTINGS_EMAIL_URL = "/settings/email"
@@ -76,8 +77,8 @@ export async function GET(request: Request) {
           created_by: user.id,
           email_address: tokens.email,
           google_user_id: tokens.googleUserId,
-          access_token: tokens.accessToken,
-          refresh_token: tokens.refreshToken,
+          access_token: process.env.ENCRYPTION_KEY ? encrypt(tokens.accessToken) : tokens.accessToken,
+          refresh_token: process.env.ENCRYPTION_KEY ? encrypt(tokens.refreshToken) : tokens.refreshToken,
           token_expires_at: tokens.expiresAt.toISOString(),
           is_active: true,
           last_error: null,

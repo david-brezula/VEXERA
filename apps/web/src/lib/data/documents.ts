@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { getActiveOrgId } from "./org"
+import { paginationRange, type PaginationParams, type PaginatedResult } from "./pagination"
 import type { DocumentStatus, DocumentType } from "@vexera/types"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -37,18 +38,25 @@ export type DocumentFilters = {
 
 // ─── getDocuments ─────────────────────────────────────────────────────────────
 
-export async function getDocuments(filters?: DocumentFilters): Promise<DocumentRow[]> {
+export async function getDocuments(
+  filters?: DocumentFilters,
+  pagination?: PaginationParams
+): Promise<PaginatedResult<DocumentRow>> {
   const [supabase, orgId] = await Promise.all([createClient(), getActiveOrgId()])
-  if (!orgId) return []
+  if (!orgId) return { data: [], total: 0, page: 1, pageSize: 50, totalPages: 0 }
+
+  const { from, to, page, pageSize } = paginationRange(pagination)
 
   let query = supabase
     .from("documents")
     .select(
-      "id, name, document_type, file_path, file_size_bytes, mime_type, invoice_id, ocr_status, created_at, uploaded_by, status, supplier_name, document_number, issue_date, due_date, total_amount, vat_amount, vat_rate, category"
+      "id, name, document_type, file_path, file_size_bytes, mime_type, invoice_id, ocr_status, created_at, uploaded_by, status, supplier_name, document_number, issue_date, due_date, total_amount, vat_amount, vat_rate, category",
+      { count: "exact" }
     )
     .eq("organization_id", orgId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
+    .range(from, to)
 
   if (filters?.document_type && filters.document_type !== "all") {
     query = query.eq("document_type", filters.document_type)
@@ -71,9 +79,17 @@ export async function getDocuments(filters?: DocumentFilters): Promise<DocumentR
     query = query.lte("created_at", filters.date_to)
   }
 
-  const { data, error } = await query
+  const { data, error, count } = await query
   if (error) throw error
-  return (data ?? []) as unknown as DocumentRow[]
+
+  const total = count ?? 0
+  return {
+    data: (data ?? []) as unknown as DocumentRow[],
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  }
 }
 
 // ─── getDocument (single) ────────────────────────────────────────────────────

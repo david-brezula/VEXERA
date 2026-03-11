@@ -29,10 +29,11 @@ export default async function InvoiceDetailPage({
 }) {
   const { id } = await params
 
-  const [invoice, documents] = await Promise.all([
+  const [invoice, documentsResult] = await Promise.all([
     getInvoice(id),
     getDocuments({ invoice_id: id }),
   ])
+  const documents = documentsResult.data
 
   if (!invoice) notFound()
 

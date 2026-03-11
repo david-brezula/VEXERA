@@ -6,6 +6,7 @@ import { getInvoices, type InvoiceFilters } from "@/lib/data/invoices"
 import { getActiveOrgId } from "@/lib/data/org"
 import { InvoiceFilters as InvoiceFiltersBar } from "@/components/invoices/invoice-filters"
 import { InvoiceTableClient } from "@/components/invoices/invoice-table-client"
+import { PaginationControls } from "@/components/ui/pagination-controls"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -53,9 +54,14 @@ function InvoiceTableSkeleton() {
 
 // ─── Async invoice list ───────────────────────────────────────────────────────
 
-async function InvoiceList({ filters }: { filters: InvoiceFilters }) {
-  const invoices = await getInvoices(filters)
-  return <InvoiceTableClient invoices={invoices} />
+async function InvoiceList({ filters, page }: { filters: InvoiceFilters; page: number }) {
+  const result = await getInvoices(filters, { page })
+  return (
+    <>
+      <InvoiceTableClient invoices={result.data} />
+      <PaginationControls page={result.page} totalPages={result.totalPages} total={result.total} />
+    </>
+  )
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -100,7 +106,7 @@ export default async function InvoicesPage({
       <InvoiceFiltersBar />
 
       <Suspense fallback={<InvoiceTableSkeleton />}>
-        <InvoiceList filters={filters} />
+        <InvoiceList filters={filters} page={Number(params.page) || 1} />
       </Suspense>
     </div>
   )
