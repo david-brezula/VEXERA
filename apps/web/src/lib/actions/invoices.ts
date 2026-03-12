@@ -6,6 +6,7 @@ import { getActiveOrgId } from "@/lib/data/org"
 import { calculateVatAmount, calculateGrossAmount } from "@vexera/utils"
 import type { InvoiceFormValues } from "@/lib/validations/invoice.schema"
 import type { InvoiceStatus, InvoiceType } from "@vexera/types"
+import { postInvoiceToLedger } from "./invoice-posting"
 
 // ─── Private helpers ──────────────────────────────────────────────────────────
 
@@ -205,12 +206,29 @@ export async function createInvoiceAction(
       new_data: { invoice_number, status: "draft", total },
     })
 
+    // Auto-create draft journal entry for ledger
+    try {
+      await postInvoiceToLedger(supabase, orgId, user.id, {
+        id: invoice.id,
+        invoice_number,
+        invoice_type: values.invoice_type,
+        issue_date: values.issue_date,
+        subtotal: Math.round(subtotal * 100) / 100,
+        vat_amount: Math.round(vat_amount * 100) / 100,
+        total: Math.round(total * 100) / 100,
+      })
+    } catch (e) {
+      // Don't fail invoice creation if ledger posting fails
+      console.error("Failed to create ledger entry for invoice:", e)
+    }
+
     if ((values as any).contact_id) {
       await updateContactStats(supabase, (values as any).contact_id, total)
     }
     await updateProductStats(supabase, values.items)
 
     revalidatePath("/invoices")
+    revalidatePath("/ledger")
     revalidatePath("/")
     return { id: invoice.id }
   } catch (err) {
