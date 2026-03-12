@@ -7,6 +7,7 @@ import type { InvoiceStatus, InvoiceType, Database } from "@vexera/types"
 
 export type InvoiceDetail = Database["public"]["Tables"]["invoices"]["Row"] & {
   invoice_items: Database["public"]["Tables"]["invoice_items"]["Row"][]
+  organization?: { logo_url: string | null } | null
 }
 
 export type InvoiceRow = {
@@ -107,7 +108,7 @@ export async function getInvoice(id: string): Promise<InvoiceDetail | null> {
 
   const { data, error } = await supabase
     .from("invoices")
-    .select("*, invoice_items(*)")
+    .select("*, invoice_items(*), organization:organizations!organization_id(logo_url)")
     .eq("id", id)
     .eq("organization_id", orgId)
     .is("deleted_at", null)
