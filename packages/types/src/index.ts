@@ -21,6 +21,8 @@ export type DocumentType =
 
 export type LedgerEntryStatus = 'draft' | 'posted' | 'reversed'
 
+export type JournalEntryStatus = 'draft' | 'posted' | 'reversed'
+
 export type AccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense' | 'off_balance'
 
 export type SubscriptionPlan =
