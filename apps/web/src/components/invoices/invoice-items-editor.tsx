@@ -2,6 +2,8 @@
 
 import { useFieldArray, useWatch, type Control } from "react-hook-form"
 import { PlusIcon, Trash2Icon } from "lucide-react"
+import { ProductPicker } from "@/components/invoices/product-picker"
+import type { Product } from "@/lib/services/products.service"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -26,7 +28,7 @@ type Props = {
 }
 
 export function InvoiceItemsEditor({ control }: Props) {
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, update } = useFieldArray({
     control,
     name: "items",
   })
@@ -92,10 +94,21 @@ export function InvoiceItemsEditor({ control }: Props) {
 
       {/* Item rows */}
       {fields.map((field, index) => (
-        <div
-          key={field.id}
-          className="grid grid-cols-[1fr_80px_80px_100px_80px_80px_36px] gap-2 items-start"
-        >
+        <div key={field.id} className="space-y-1">
+          <ProductPicker
+            onSelect={(product: Product) => {
+              update(index, {
+                ...fields[index],
+                description: product.name,
+                unit: product.unit,
+                unit_price_net: product.unit_price_net,
+                vat_rate: product.vat_rate as 20 | 10 | 5 | 0,
+                product_id: product.id,
+                sort_order: index,
+              })
+            }}
+          />
+          <div className="grid grid-cols-[1fr_80px_80px_100px_80px_80px_36px] gap-2 items-start">
           {/* Description */}
           <FormField
             control={control}
@@ -207,6 +220,7 @@ export function InvoiceItemsEditor({ control }: Props) {
           >
             <Trash2Icon className="size-4" />
           </Button>
+          </div>
         </div>
       ))}
 
