@@ -54,7 +54,7 @@ export default function LoginPage() {
         return
       }
 
-      router.push("/")
+      router.push("/dashboard")
       router.refresh()
     } catch {
       toast.error("An unexpected error occurred")

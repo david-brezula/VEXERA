@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { getActiveOrgId } from "./org"
+import { paginationRange, type PaginationParams, type PaginatedResult } from "./pagination"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,18 +64,23 @@ export type LedgerSummary = {
 // ─── getLedgerEntries ─────────────────────────────────────────────────────────
 
 export async function getLedgerEntries(
-  filters?: LedgerFilters
-): Promise<LedgerEntry[]> {
+  filters?: LedgerFilters,
+  pagination?: PaginationParams
+): Promise<PaginatedResult<LedgerEntry>> {
   const [supabase, orgId] = await Promise.all([createClient(), getActiveOrgId()])
-  if (!orgId) return []
+  if (!orgId) return { data: [], total: 0, page: 1, pageSize: 50, totalPages: 0 }
+
+  const { from, to, page, pageSize } = paginationRange(pagination)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (supabase.from("ledger_entries" as any) as any)
     .select(
-      "id, entry_date, description, reference_number, debit_account_number, credit_account_number, amount, currency, status, is_closing_entry, invoice_id, document_id, created_by, posted_by, posted_at, created_at"
+      "id, entry_date, description, reference_number, debit_account_number, credit_account_number, amount, currency, status, is_closing_entry, invoice_id, document_id, created_by, posted_by, posted_at, created_at",
+      { count: "exact" }
     )
     .eq("organization_id", orgId)
     .order("entry_date", { ascending: false })
+    .range(from, to)
 
   if (filters?.status) {
     query = query.eq("status", filters.status)
@@ -96,9 +102,17 @@ export async function getLedgerEntries(
     )
   }
 
-  const { data, error } = await query
+  const { data, error, count } = await query
   if (error) throw error
-  return (data ?? []) as unknown as LedgerEntry[]
+
+  const total = count ?? 0
+  return {
+    data: (data ?? []) as unknown as LedgerEntry[],
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  }
 }
 
 // ─── getChartOfAccounts ───────────────────────────────────────────────────────

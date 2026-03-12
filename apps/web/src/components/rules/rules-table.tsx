@@ -59,7 +59,7 @@ export function RulesTable({ targetEntity }: RulesTableProps) {
 
   return (
     <>
-      <div className="rounded-md border mt-4">
+      <div className="rounded-md border bg-card backdrop-blur-xl mt-4">
         <Table>
           <TableHeader>
             <TableRow>

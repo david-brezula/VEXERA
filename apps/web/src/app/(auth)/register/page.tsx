@@ -61,8 +61,8 @@ export default function RegisterPage() {
         return
       }
 
-      toast.success("Account created! Please check your email to verify your account.")
-      router.push("/login")
+      toast.success("Ucet vytvoreny!")
+      router.push("/onboarding")
     } catch {
       toast.error("An unexpected error occurred")
     } finally {

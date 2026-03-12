@@ -165,7 +165,7 @@ function DocumentCard({ doc, onDeleted }: { doc: DocumentRow; onDeleted: () => v
       </Dialog>
 
       {/* Card */}
-      <div className="group relative rounded-lg border bg-card p-4 flex flex-col gap-3 hover:shadow-sm transition-shadow">
+      <div className="group relative rounded-lg border bg-card p-4 flex flex-col gap-3 backdrop-blur-xl hover:shadow-lg hover:bg-white/80 dark:hover:bg-white/8 transition-all duration-200 cursor-pointer">
         <div className="flex items-start gap-3">
           <div className="shrink-0 size-10 rounded-md bg-muted flex items-center justify-center">
             <Icon className="size-5 text-muted-foreground" />

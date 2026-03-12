@@ -328,7 +328,7 @@ export function DocumentsTableClient({ documents, hasFilters }: Props) {
           )}
         </div>
       ) : (
-        <div className="rounded-md border">
+        <div className="rounded-md border bg-card backdrop-blur-xl">
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (

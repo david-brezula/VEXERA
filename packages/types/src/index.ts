@@ -4,7 +4,7 @@ export type { Database, Json } from './database.types'
 
 export type OrganizationRole = 'owner' | 'admin' | 'member'
 
-export type InvoiceType = 'issued' | 'received'
+export type InvoiceType = 'issued' | 'received' | 'credit_note'
 
 export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled' | 'closed'
 

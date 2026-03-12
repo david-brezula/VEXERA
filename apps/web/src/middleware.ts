@@ -1,24 +1,34 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { updateSession } from "@/lib/supabase/middleware"
 
-const PUBLIC_ROUTES = ["/login", "/register", "/invite"]
+const PUBLIC_ROUTES = ["/", "/login", "/register", "/invite"]
 
 export async function middleware(request: NextRequest) {
   const { user, supabaseResponse } = await updateSession(request)
 
+  const { pathname } = request.nextUrl
   const isPublicRoute = PUBLIC_ROUTES.some((route) =>
-    request.nextUrl.pathname.startsWith(route)
+    route === "/" ? pathname === "/" : pathname.startsWith(route)
   )
 
-  if (!user && !isPublicRoute) {
+  // Authenticated user on landing page: redirect to dashboard
+  if (user && pathname === "/") {
     const url = request.nextUrl.clone()
-    url.pathname = "/login"
+    url.pathname = "/dashboard"
     return NextResponse.redirect(url)
   }
 
-  if (user && request.nextUrl.pathname === "/login") {
+  // Authenticated user on login page: redirect to dashboard
+  if (user && pathname === "/login") {
     const url = request.nextUrl.clone()
-    url.pathname = "/"
+    url.pathname = "/dashboard"
+    return NextResponse.redirect(url)
+  }
+
+  // Unauthenticated user on protected route: redirect to landing page
+  if (!user && !isPublicRoute) {
+    const url = request.nextUrl.clone()
+    url.pathname = "/login"
     return NextResponse.redirect(url)
   }
 
@@ -26,8 +36,8 @@ export async function middleware(request: NextRequest) {
   if (
     user &&
     !isPublicRoute &&
-    request.nextUrl.pathname !== "/onboarding" &&
-    !request.nextUrl.pathname.startsWith("/api/") &&
+    pathname !== "/onboarding" &&
+    !pathname.startsWith("/api/") &&
     !request.cookies.get("active_organization_id")?.value
   ) {
     const url = request.nextUrl.clone()

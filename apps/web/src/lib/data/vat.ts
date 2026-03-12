@@ -43,11 +43,12 @@ export async function getCurrentQuarterVat(orgId: string): Promise<VatSummary> {
     .gte("issue_date", qStart)
     .lte("issue_date", qEnd)
     .is("deleted_at", null)
+    .is("invoice_id", null)  // exclude docs linked to invoices to avoid double-counting
 
-  // Get invoices for this quarter
+  // Get invoices for this quarter (for taxable base calculations)
   const { data: invoices } = await supabase
     .from("invoices")
-    .select("invoice_type, total, vat_amount")
+    .select("id, invoice_type, total, vat_amount")
     .eq("organization_id", orgId)
     .in("status", ["paid", "sent", "overdue"])
     .gte("issue_date", qStart)
@@ -55,10 +56,24 @@ export async function getCurrentQuarterVat(orgId: string): Promise<VatSummary> {
     .is("deleted_at", null)
 
   type DocRow = { document_type: string | null; total_amount: number | null; vat_amount: number | null; vat_rate: number | null }
-  type InvRow = { invoice_type: string; total: number | null; vat_amount: number | null }
+  type InvRow = { id: string; invoice_type: string; total: number | null; vat_amount: number | null }
 
   const docRows = (docs ?? []) as unknown as DocRow[]
   const invRows = (invoices ?? []) as unknown as InvRow[]
+
+  // Get invoice items with per-line VAT rates for proper bucketing
+  const invoiceIds = invRows.map(i => i.id)
+  const invoiceTypeMap = new Map(invRows.map(i => [i.id, i.invoice_type]))
+
+  type ItemRow = { invoice_id: string; vat_rate: number | null; vat_amount: number | null }
+  let itemRows: ItemRow[] = []
+  if (invoiceIds.length > 0) {
+    const { data: items } = await supabase
+      .from("invoice_items")
+      .select("invoice_id, vat_rate, vat_amount")
+      .in("invoice_id", invoiceIds)
+    itemRows = (items ?? []) as unknown as ItemRow[]
+  }
 
   // Initialize VAT buckets
   const vat = {
@@ -89,17 +104,32 @@ export async function getCurrentQuarterVat(orgId: string): Promise<VatSummary> {
     }
   }
 
-  // Process invoices (for invoices without document records)
+  // Process invoice-level totals for taxable base
   for (const inv of invRows) {
     const vatAmt = Number(inv.vat_amount) || 0
     const totalAmt = Number(inv.total) || 0
 
     if (inv.invoice_type === "issued") {
       vat.base_output += totalAmt - vatAmt
-      vat.output_20 += vatAmt  // default to 20% rate for invoices
     } else {
       vat.base_input += totalAmt - vatAmt
-      vat.input_20 += vatAmt
+    }
+  }
+
+  // Process invoice items with actual per-line VAT rates for bucketing
+  for (const item of itemRows) {
+    const vatAmt = Number(item.vat_amount) || 0
+    const rate = Number(item.vat_rate) || 20
+    const invoiceType = invoiceTypeMap.get(item.invoice_id)
+
+    if (invoiceType === "issued") {
+      if (rate >= 18) vat.output_20 += vatAmt
+      else if (rate >= 8) vat.output_10 += vatAmt
+      else vat.output_5 += vatAmt
+    } else {
+      if (rate >= 18) vat.input_20 += vatAmt
+      else if (rate >= 8) vat.input_10 += vatAmt
+      else vat.input_5 += vatAmt
     }
   }
 

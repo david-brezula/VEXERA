@@ -25,7 +25,7 @@ const navGroups = [
   {
     label: "Main",
     items: [
-      { href: "/", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/inbox", label: "Inbox", icon: Inbox },
     ],
   },
@@ -61,7 +61,7 @@ const bottomItems = [
 
 function Logo() {
   return (
-    <Link href="/" className="flex items-center gap-2.5 group">
+    <Link href="/dashboard" className="flex items-center gap-2.5 group">
       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary shadow-sm group-hover:opacity-90 transition-opacity">
         <svg
           width="16"
@@ -106,8 +106,8 @@ function NavItem({
       className={cn(
         "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150",
         isActive
-          ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-          : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          ? "bg-white/10 backdrop-blur-sm text-sidebar-primary-foreground shadow-sm"
+          : "text-sidebar-foreground/60 hover:bg-white/5 hover:text-sidebar-accent-foreground"
       )}
     >
       <Icon className="h-4 w-4 shrink-0" />
@@ -122,11 +122,11 @@ export function Sidebar() {
   const pathname = usePathname()
 
   function isActive(href: string) {
-    return href === "/" ? pathname === "/" : pathname.startsWith(href)
+    return href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href)
   }
 
   return (
-    <aside className="hidden w-[220px] shrink-0 md:flex flex-col bg-sidebar border-r border-sidebar-border">
+    <aside className="hidden w-[220px] shrink-0 md:flex flex-col bg-sidebar/90 backdrop-blur-xl border-r border-sidebar-border">
       {/* Logo */}
       <div className="flex h-14 items-center px-4 border-b border-sidebar-border">
         <Logo />

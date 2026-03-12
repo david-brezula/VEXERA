@@ -3,7 +3,17 @@
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { getActiveOrgId } from "@/lib/data/org"
+import { getAccountBalances, type AccountBalance } from "@/lib/data/ledger"
 import { writeAuditLog } from "@/lib/services/audit.server"
+
+// ─── fetchBalancesAction ─────────────────────────────────────────────────────
+
+export async function fetchBalancesAction(
+  year?: number,
+  month?: number
+): Promise<AccountBalance[]> {
+  return getAccountBalances(year, month)
+}
 
 // ─── createLedgerEntryAction ──────────────────────────────────────────────────
 

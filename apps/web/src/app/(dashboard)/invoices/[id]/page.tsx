@@ -8,12 +8,14 @@ import {
   FileTextIcon,
   UploadIcon,
   HistoryIcon,
+  DownloadIcon,
 } from "lucide-react"
 
 import { getInvoice } from "@/lib/data/invoices"
 import { getDocuments } from "@/lib/data/documents"
 import { InvoiceStatusBadge } from "@/components/invoices/invoice-status-badge"
 import { InvoiceActionsBar } from "@/components/invoices/invoice-actions"
+import { SendEmailDialog } from "@/components/invoices/send-email-dialog"
 import { InvoiceDocumentsTab } from "@/components/invoices/invoice-documents-tab"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -29,10 +31,11 @@ export default async function InvoiceDetailPage({
 }) {
   const { id } = await params
 
-  const [invoice, documents] = await Promise.all([
+  const [invoice, documentsResult] = await Promise.all([
     getInvoice(id),
     getDocuments({ invoice_id: id }),
   ])
+  const documents = documentsResult.data
 
   if (!invoice) notFound()
 
@@ -60,6 +63,15 @@ export default async function InvoiceDetailPage({
               Print
             </Link>
           </Button>
+          <Button variant="outline" size="sm" asChild>
+            <a href={`/api/invoices/${id}/pdf`} download>
+              <DownloadIcon className="size-4" />
+              PDF
+            </a>
+          </Button>
+          {(invoice.status === "sent" || invoice.status === "paid") && (
+            <SendEmailDialog invoiceId={id} invoiceNumber={invoice.invoice_number} />
+          )}
           {isEditable && (
             <Button variant="outline" size="sm" asChild>
               <Link href={`/invoices/${id}/edit`}>

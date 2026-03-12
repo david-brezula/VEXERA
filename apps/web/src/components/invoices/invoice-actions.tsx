@@ -9,9 +9,10 @@ import {
   CheckCircleIcon,
   ClockIcon,
   XCircleIcon,
+  ReceiptIcon,
 } from "lucide-react"
 
-import { updateInvoiceStatusAction, deleteInvoiceAction } from "@/lib/actions/invoices"
+import { updateInvoiceStatusAction, deleteInvoiceAction, createCreditNoteAction } from "@/lib/actions/invoices"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -53,6 +54,7 @@ const STATUS_ACTIONS: Record<string, StatusAction[]> = {
       variant: "outline",
       icon: ClockIcon,
     },
+    { label: "Credit note", newStatus: "credit_note" as any, variant: "outline", icon: ReceiptIcon },
     {
       label: "Cancel",
       newStatus: "delete",
@@ -60,6 +62,9 @@ const STATUS_ACTIONS: Record<string, StatusAction[]> = {
       icon: XCircleIcon,
       confirm: true,
     },
+  ],
+  paid: [
+    { label: "Credit note", newStatus: "credit_note" as any, variant: "outline", icon: ReceiptIcon },
   ],
   overdue: [
     { label: "Mark as paid", newStatus: "paid", variant: "default", icon: CheckCircleIcon },
@@ -96,6 +101,14 @@ export function InvoiceActionsBar({ invoiceId, invoiceNumber, status }: Props) {
         } else {
           toast.success("Invoice deleted")
           router.push("/invoices")
+        }
+      } else if ((action.newStatus as string) === "credit_note") {
+        const result = await createCreditNoteAction(invoiceId)
+        if (result.error) {
+          toast.error(result.error)
+        } else {
+          toast.success("Credit note created")
+          router.push(`/invoices/${result.id}`)
         }
       } else {
         const result = await updateInvoiceStatusAction(invoiceId, action.newStatus)

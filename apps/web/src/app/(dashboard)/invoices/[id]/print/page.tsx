@@ -3,6 +3,7 @@ import { format } from "date-fns"
 import { formatEur } from "@vexera/utils"
 
 import { getInvoice } from "@/lib/data/invoices"
+import { QrPaymentCode } from "@/components/invoices/qr-payment-code"
 import { PrintControls } from "./print-controls"
 
 export default async function InvoicePrintPage({
@@ -22,9 +23,18 @@ export default async function InvoicePrintPage({
       <div className="invoice-page font-sans text-gray-900 bg-white p-12 max-w-[210mm] mx-auto">
         {/* Header */}
         <div className="flex justify-between items-start mb-10">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">INVOICE</h1>
-            <p className="text-lg font-mono text-gray-500 mt-1">{invoice.invoice_number}</p>
+          <div className="flex items-center gap-4">
+            {invoice.organization?.logo_url && (
+              <img
+                src={invoice.organization.logo_url}
+                alt="Company logo"
+                className="h-16 w-auto object-contain"
+              />
+            )}
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">INVOICE</h1>
+              <p className="text-lg font-mono text-gray-500 mt-1">{invoice.invoice_number}</p>
+            </div>
           </div>
           <div className="text-right space-y-1 text-sm">
             <p>
@@ -145,21 +155,81 @@ export default async function InvoicePrintPage({
           </tbody>
         </table>
 
-        {/* Totals */}
-        <div className="border-t border-gray-900 pt-4 ml-auto w-56 space-y-1 text-sm">
-          <div className="flex justify-between text-gray-500">
-            <span>Subtotal (net)</span>
-            <span className="tabular-nums">{formatEur(Number(invoice.subtotal))}</span>
+        {/* Totals with VAT breakdown */}
+        {(() => {
+          const items = invoice.invoice_items ?? []
+          const vatMap = new Map<number, { net: number; vat: number }>()
+          for (const item of items) {
+            const rate = Number(item.vat_rate)
+            const prev = vatMap.get(rate) ?? { net: 0, vat: 0 }
+            prev.net += Number(item.quantity) * Number(item.unit_price)
+            prev.vat += Number(item.vat_amount)
+            vatMap.set(rate, prev)
+          }
+          const breakdown = Array.from(vatMap.entries()).sort((a, b) => b[0] - a[0])
+          return (
+            <div className="border-t border-gray-900 pt-4 ml-auto w-72 text-sm">
+              {breakdown.length > 1 && (
+                <table className="w-full mb-2">
+                  <thead>
+                    <tr className="text-xs text-gray-500">
+                      <th className="text-left font-normal pb-1">VAT rate</th>
+                      <th className="text-right font-normal pb-1">Net amount</th>
+                      <th className="text-right font-normal pb-1">VAT</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {breakdown.map(([rate, { net, vat }]) => (
+                      <tr key={rate} className="text-gray-600">
+                        <td className="py-0.5">{rate}%</td>
+                        <td className="py-0.5 text-right tabular-nums">{formatEur(net)}</td>
+                        <td className="py-0.5 text-right tabular-nums">{formatEur(vat)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <div className="space-y-1">
+                <div className="flex justify-between text-gray-500">
+                  <span>Subtotal (net)</span>
+                  <span className="tabular-nums">{formatEur(Number(invoice.subtotal))}</span>
+                </div>
+                {breakdown.map(([rate, { vat }]) => (
+                  <div key={rate} className="flex justify-between text-gray-500">
+                    <span>VAT {rate}%</span>
+                    <span className="tabular-nums">{formatEur(vat)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-base font-bold border-t border-gray-900 pt-2">
+                  <span>Total</span>
+                  <span className="tabular-nums">{formatEur(Number(invoice.total))}</span>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* QR payment code */}
+        {invoice.invoice_type === "issued" && invoice.supplier_iban && (
+          <div className="mt-6 flex items-start gap-4">
+            <QrPaymentCode
+              amount={Number(invoice.total)}
+              currency={(invoice as any).currency || "EUR"}
+              iban={invoice.supplier_iban}
+              variableSymbol={invoice.variable_symbol ?? undefined}
+              constantSymbol={invoice.constant_symbol ?? undefined}
+              specificSymbol={(invoice as any).specific_symbol ?? undefined}
+              dueDate={invoice.due_date}
+              beneficiaryName={invoice.supplier_name}
+              note={`Invoice ${invoice.invoice_number}`}
+            />
+            <div className="text-xs text-gray-500 space-y-0.5 pt-2">
+              <p>Scan to pay via your banking app</p>
+              <p className="font-mono">{invoice.supplier_iban}</p>
+              {invoice.variable_symbol && <p>VS: {invoice.variable_symbol}</p>}
+            </div>
           </div>
-          <div className="flex justify-between text-gray-500">
-            <span>VAT</span>
-            <span className="tabular-nums">{formatEur(Number(invoice.vat_amount))}</span>
-          </div>
-          <div className="flex justify-between text-base font-bold border-t border-gray-900 pt-2">
-            <span>Total</span>
-            <span className="tabular-nums">{formatEur(Number(invoice.total))}</span>
-          </div>
-        </div>
+        )}
 
         {/* Notes */}
         {invoice.notes && (

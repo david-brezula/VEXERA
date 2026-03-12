@@ -19,6 +19,7 @@ export const invoiceItemSchema = z.object({
     z.literal(0),
   ]),
   sort_order: z.number().int().default(0),
+  product_id: z.string().uuid().optional().or(z.literal("")),
 })
 
 export type InvoiceItemFormValues = z.infer<typeof invoiceItemSchema>
@@ -27,7 +28,7 @@ export type InvoiceItemFormValues = z.infer<typeof invoiceItemSchema>
 
 export const invoiceSchema = z.object({
   // Identification
-  invoice_type: z.enum(["issued", "received"]),
+  invoice_type: z.enum(["issued", "received", "credit_note"]),
   invoice_number: z.string().min(1, "Invoice number is required"),
 
   // Supplier (Dodávateľ)
@@ -64,11 +65,23 @@ export const invoiceSchema = z.object({
   // Currency
   currency: z.string().default("EUR"),
 
+  // Contact reference
+  contact_id: z.string().uuid().optional().or(z.literal("")),
+
   // Line items — must have at least one
   items: z
     .array(invoiceItemSchema)
     .min(1, "Add at least one line item"),
-})
+}).refine(
+  (data) => {
+    if (!data.issue_date || !data.due_date) return true
+    return data.due_date >= data.issue_date
+  },
+  {
+    message: "Due date must be on or after the issue date",
+    path: ["due_date"],
+  }
+)
 
 export type InvoiceFormValues = z.infer<typeof invoiceSchema>
 
@@ -111,7 +124,9 @@ export function defaultInvoiceValues(type: "issued" | "received" = "issued"): In
         unit_price_net: 0,
         vat_rate: 20,
         sort_order: 0,
+        product_id: "",
       },
     ],
+    contact_id: "",
   }
 }

@@ -9,30 +9,38 @@ import {
   getLedgerSummary,
 } from "@/lib/data/ledger"
 import { LedgerClient } from "@/components/ledger/ledger-client"
+import { PaginationControls } from "@/components/ui/pagination-controls"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export const metadata = { title: "Ledger | Vexera" }
 
-async function LedgerContent() {
-  const [entries, accounts, balances, summary] = await Promise.all([
-    getLedgerEntries(),
+async function LedgerContent({ page }: { page: number }) {
+  const [entriesResult, accounts, balances, summary] = await Promise.all([
+    getLedgerEntries(undefined, { page }),
     getChartOfAccounts(),
     getAccountBalances(),
     getLedgerSummary(),
   ])
 
   return (
-    <LedgerClient
-      entries={entries}
-      accounts={accounts}
-      balances={balances}
-      summary={summary}
-    />
+    <>
+      <LedgerClient
+        entries={entriesResult.data}
+        accounts={accounts}
+        balances={balances}
+        summary={summary}
+      />
+      <PaginationControls page={entriesResult.page} totalPages={entriesResult.totalPages} total={entriesResult.total} />
+    </>
   )
 }
 
-export default async function LedgerPage() {
-  const orgId = await getActiveOrgId()
+export default async function LedgerPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const [params, orgId] = await Promise.all([searchParams, getActiveOrgId()])
 
   if (!orgId) {
     return (
@@ -56,7 +64,7 @@ export default async function LedgerPage() {
       <Suspense
         fallback={<Skeleton className="h-[500px] w-full rounded-xl" />}
       >
-        <LedgerContent />
+        <LedgerContent page={Number(params.page) || 1} />
       </Suspense>
     </div>
   )

@@ -14,6 +14,8 @@ import {
 } from "@/lib/validations/invoice.schema"
 import { createInvoiceAction, updateInvoiceAction } from "@/lib/actions/invoices"
 import { InvoiceItemsEditor } from "@/components/invoices/invoice-items-editor"
+import { ContactPicker } from "@/components/invoices/contact-picker"
+import type { Contact } from "@/lib/services/contacts.service"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -117,6 +119,18 @@ export function InvoiceForm({ defaultValues, invoiceId }: Props) {
         {/* ── Section 2: Supplier ──────────────────────────────────────── */}
         <section className="space-y-4">
           <h2 className="text-lg font-semibold">Supplier (Dodávateľ)</h2>
+          <ContactPicker
+            contactType="supplier"
+            onSelect={(contact: Contact) => {
+              form.setValue("supplier_name", contact.name)
+              form.setValue("supplier_ico", contact.ico ?? "")
+              form.setValue("supplier_dic", contact.dic ?? "")
+              form.setValue("supplier_ic_dph", contact.ic_dph ?? "")
+              form.setValue("supplier_address", [contact.street, contact.city, contact.postal_code].filter(Boolean).join(", "))
+              form.setValue("supplier_iban", contact.bank_account ?? "")
+              form.setValue("contact_id", contact.id)
+            }}
+          />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField
               control={form.control}
@@ -199,6 +213,17 @@ export function InvoiceForm({ defaultValues, invoiceId }: Props) {
         {/* ── Section 3: Customer ──────────────────────────────────────── */}
         <section className="space-y-4">
           <h2 className="text-lg font-semibold">Customer (Odberateľ)</h2>
+          <ContactPicker
+            contactType="client"
+            onSelect={(contact: Contact) => {
+              form.setValue("customer_name", contact.name)
+              form.setValue("customer_ico", contact.ico ?? "")
+              form.setValue("customer_dic", contact.dic ?? "")
+              form.setValue("customer_ic_dph", contact.ic_dph ?? "")
+              form.setValue("customer_address", [contact.street, contact.city, contact.postal_code].filter(Boolean).join(", "))
+              form.setValue("contact_id", contact.id)
+            }}
+          />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField
               control={form.control}
@@ -365,6 +390,18 @@ export function InvoiceForm({ defaultValues, invoiceId }: Props) {
                   <FormLabel>Constant symbol</FormLabel>
                   <FormControl>
                     <Input placeholder="0308" {...field} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="specific_symbol"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Specific symbol</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Optional" {...field} />
                   </FormControl>
                 </FormItem>
               )}

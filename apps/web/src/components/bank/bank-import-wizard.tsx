@@ -115,7 +115,7 @@ export function BankImportWizard() {
 
       {/* Result summary */}
       {result && (
-        <div className="rounded-lg border bg-muted/50 p-4 space-y-1">
+        <div className="rounded-lg border bg-card backdrop-blur-xl p-4 space-y-1">
           <div className="flex items-center gap-2 font-medium">
             <CheckCircleIcon className="size-4 text-green-500" />
             Import complete

@@ -36,6 +36,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { decrypt } from "./crypto.ts"
 
 const GMAIL_TOKEN_URL = "https://oauth2.googleapis.com/token"
 const GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1"
@@ -283,12 +284,20 @@ Deno.serve(async (req: Request) => {
     email_address: string
   }>) {
     try {
+      // Decrypt tokens (gracefully handles unencrypted tokens during migration)
+      const hasEncryptionKey = !!Deno.env.get("ENCRYPTION_KEY")
+      const decryptToken = async (token: string) => {
+        if (!hasEncryptionKey) return token
+        try { return await decrypt(token) } catch { return token }
+      }
+
       // Refresh access token if expired (or within 60s of expiry)
-      let accessToken = conn.access_token
+      let accessToken = await decryptToken(conn.access_token)
       const expiresAt = new Date(conn.token_expires_at)
 
       if (expiresAt.getTime() - Date.now() < 60_000) {
-        const refreshed = await refreshToken(conn.refresh_token)
+        const decryptedRefresh = await decryptToken(conn.refresh_token)
+        const refreshed = await refreshToken(decryptedRefresh)
         accessToken = refreshed.accessToken
 
         await db

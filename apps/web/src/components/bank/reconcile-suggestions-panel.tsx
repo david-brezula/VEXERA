@@ -89,7 +89,7 @@ export function ReconcileSuggestionsPanel({ result }: ReconcileSuggestionsPanelP
         {result.suggestions.length !== 1 ? "s" : ""} need manual review
         {result.reconciled > 0 && ` · ${result.reconciled} auto-matched`}
       </p>
-      <div className="rounded-lg border px-4">
+      <div className="rounded-lg border bg-card backdrop-blur-xl px-4">
         {result.suggestions.map((match, i) => (
           <SuggestionRow key={`${match.transaction_id}-${i}`} match={match} />
         ))}
