@@ -369,6 +369,18 @@ export function InvoiceForm({ defaultValues, invoiceId }: Props) {
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="specific_symbol"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Specific symbol</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Optional" {...field} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
           </div>
         </section>
 
