@@ -8,6 +8,7 @@ import {
   FileTextIcon,
   UploadIcon,
   HistoryIcon,
+  DownloadIcon,
 } from "lucide-react"
 
 import { getInvoice } from "@/lib/data/invoices"
@@ -60,6 +61,12 @@ export default async function InvoiceDetailPage({
               <PrinterIcon className="size-4" />
               Print
             </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <a href={`/api/invoices/${id}/pdf`} download>
+              <DownloadIcon className="size-4" />
+              PDF
+            </a>
           </Button>
           {isEditable && (
             <Button variant="outline" size="sm" asChild>
