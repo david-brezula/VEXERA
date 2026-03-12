@@ -3,7 +3,7 @@ import { BookOpen } from "lucide-react"
 
 import { getActiveOrgId } from "@/lib/data/org"
 import {
-  getLedgerEntries,
+  getJournalEntries,
   getChartOfAccounts,
   getAccountBalances,
   getLedgerSummary,
@@ -16,7 +16,7 @@ export const metadata = { title: "Ledger | Vexera" }
 
 async function LedgerContent({ page }: { page: number }) {
   const [entriesResult, accounts, balances, summary] = await Promise.all([
-    getLedgerEntries(undefined, { page }),
+    getJournalEntries(undefined, { page }),
     getChartOfAccounts(),
     getAccountBalances(),
     getLedgerSummary(),

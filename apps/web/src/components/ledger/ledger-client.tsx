@@ -15,11 +15,11 @@ import {
 import { toast } from "sonner"
 
 import {
-  createLedgerEntryAction,
-  postLedgerEntryAction,
-  reverseLedgerEntryAction,
-  deleteLedgerEntryAction,
-  batchPostEntriesAction,
+  createJournalEntryAction,
+  postJournalEntryAction,
+  reverseJournalEntryAction,
+  deleteJournalEntryAction,
+  batchPostJournalEntriesAction,
   fetchBalancesAction,
 } from "@/lib/actions/ledger"
 import { Button } from "@/components/ui/button"
@@ -60,7 +60,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import type {
-  LedgerEntry,
+  JournalEntry,
   ChartAccount,
   AccountBalance,
   LedgerSummary,
@@ -110,7 +110,7 @@ const classNames: Record<string, string> = {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface LedgerClientProps {
-  entries: LedgerEntry[]
+  entries: JournalEntry[]
   accounts: ChartAccount[]
   balances: AccountBalance[]
   summary: LedgerSummary
@@ -184,11 +184,12 @@ export function LedgerClient({
       if (dateTo && e.entry_date > dateTo) return false
       if (journalSearch) {
         const q = journalSearch.toLowerCase()
+        const accountMatch = e.lines.some((l) => l.account_number.includes(q))
         const matches =
           e.description.toLowerCase().includes(q) ||
           (e.reference_number?.toLowerCase().includes(q) ?? false) ||
-          e.debit_account_number.includes(q) ||
-          e.credit_account_number.includes(q)
+          (e.entry_number?.toLowerCase().includes(q) ?? false) ||
+          accountMatch
         if (!matches) return false
       }
       return true
@@ -244,7 +245,7 @@ export function LedgerClient({
 
   function handlePost(id: string) {
     startTransition(async () => {
-      const result = await postLedgerEntryAction(id)
+      const result = await postJournalEntryAction(id)
       if (result.error) {
         toast.error(result.error)
       } else {
@@ -256,7 +257,7 @@ export function LedgerClient({
 
   function handleReverse(id: string) {
     startTransition(async () => {
-      const result = await reverseLedgerEntryAction(id)
+      const result = await reverseJournalEntryAction(id)
       if (result.error) {
         toast.error(result.error)
       } else {
@@ -268,7 +269,7 @@ export function LedgerClient({
 
   function handleDelete(id: string) {
     startTransition(async () => {
-      const result = await deleteLedgerEntryAction(id)
+      const result = await deleteJournalEntryAction(id)
       if (result.error) {
         toast.error(result.error)
       } else {
@@ -287,7 +288,7 @@ export function LedgerClient({
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
     startTransition(async () => {
-      const result = await batchPostEntriesAction(ids)
+      const result = await batchPostJournalEntriesAction(ids)
       if (result.error) {
         toast.error(result.error)
       } else {
@@ -312,13 +313,14 @@ export function LedgerClient({
     }
 
     startTransition(async () => {
-      const result = await createLedgerEntryAction({
+      const result = await createJournalEntryAction({
         entry_date: form.entry_date,
         description: form.description,
         reference_number: form.reference_number || undefined,
-        debit_account_number: form.debit_account_number,
-        credit_account_number: form.credit_account_number,
-        amount,
+        lines: [
+          { account_number: form.debit_account_number, debit_amount: amount, credit_amount: 0 },
+          { account_number: form.credit_account_number, debit_amount: 0, credit_amount: amount },
+        ],
       })
       if (result.error) {
         toast.error(result.error)
@@ -631,10 +633,9 @@ export function LedgerClient({
                     />
                   </TableHead>
                   <TableHead>Date</TableHead>
-                  <TableHead>Reference</TableHead>
+                  <TableHead>Entry #</TableHead>
                   <TableHead>Description</TableHead>
-                  <TableHead>Debit Account</TableHead>
-                  <TableHead>Credit Account</TableHead>
+                  <TableHead>Accounts</TableHead>
                   <TableHead className="text-right">Amount (EUR)</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-10" />
@@ -659,19 +660,16 @@ export function LedgerClient({
                       {formatDate(entry.entry_date)}
                     </TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
-                      {entry.reference_number ?? "\u2014"}
+                      {entry.entry_number ?? entry.reference_number ?? "\u2014"}
                     </TableCell>
                     <TableCell className="max-w-[240px] truncate text-sm">
                       {entry.description}
                     </TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {entry.debit_account_number}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {entry.credit_account_number}
+                    <TableCell className="font-mono text-xs">
+                      {entry.lines.map((l) => l.account_number).join(", ")}
                     </TableCell>
                     <TableCell className="text-right tabular-nums font-medium text-sm">
-                      {formatEur(entry.amount)}
+                      {formatEur(entry.total_amount)}
                     </TableCell>
                     <TableCell>
                       <Badge
