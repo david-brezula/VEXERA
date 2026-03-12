@@ -314,3 +314,117 @@ export async function deleteInvoiceAction(
     return { error: err instanceof Error ? err.message : "Unexpected error" }
   }
 }
+
+// ─── createCreditNoteAction ──────────────────────────────────────────────────
+
+export async function createCreditNoteAction(
+  originalInvoiceId: string
+): Promise<{ id?: string; error?: string }> {
+  try {
+    const [supabase, orgId] = await Promise.all([createClient(), getActiveOrgId()])
+    if (!orgId) return { error: "No active organization" }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { error: "Not authenticated" }
+
+    const { data: original, error: fetchError } = await supabase
+      .from("invoices")
+      .select("*, invoice_items(*)")
+      .eq("id", originalInvoiceId)
+      .eq("organization_id", orgId)
+      .is("deleted_at", null)
+      .single()
+
+    if (fetchError || !original) return { error: "Original invoice not found" }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const orig = original as any
+
+    if (!["sent", "paid"].includes(orig.status)) {
+      return { error: "Credit notes can only be created for sent or paid invoices" }
+    }
+
+    const invoice_number = await generateInvoiceNumber(supabase, orgId, "credit_note" as InvoiceType)
+
+    const subtotal = -Math.abs(Number(orig.subtotal))
+    const vat_amount = -Math.abs(Number(orig.vat_amount))
+    const total = -Math.abs(Number(orig.total))
+
+    const { data: creditNote, error: insertError } = await supabase
+      .from("invoices")
+      .insert({
+        organization_id: orgId,
+        invoice_number,
+        invoice_type: "credit_note",
+        status: "draft",
+        credit_note_for_id: originalInvoiceId,
+        supplier_name: orig.supplier_name,
+        supplier_ico: orig.supplier_ico,
+        supplier_dic: orig.supplier_dic,
+        supplier_ic_dph: orig.supplier_ic_dph,
+        supplier_address: orig.supplier_address,
+        supplier_iban: orig.supplier_iban,
+        customer_name: orig.customer_name,
+        customer_ico: orig.customer_ico,
+        customer_dic: orig.customer_dic,
+        customer_ic_dph: orig.customer_ic_dph,
+        customer_address: orig.customer_address,
+        issue_date: new Date().toISOString().slice(0, 10),
+        delivery_date: new Date().toISOString().slice(0, 10),
+        due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        payment_method: orig.payment_method,
+        bank_iban: orig.bank_iban,
+        variable_symbol: orig.variable_symbol,
+        constant_symbol: orig.constant_symbol,
+        specific_symbol: orig.specific_symbol,
+        notes: `Credit note for invoice ${orig.invoice_number}`,
+        currency: orig.currency,
+        subtotal: Math.round(subtotal * 100) / 100,
+        vat_amount: Math.round(vat_amount * 100) / 100,
+        total: Math.round(total * 100) / 100,
+        created_by: user.id,
+      })
+      .select("id")
+      .single()
+
+    if (insertError) return { error: insertError.message }
+
+    const originalItems = orig.invoice_items ?? []
+    if (originalItems.length > 0) {
+      const creditItems = originalItems.map((item: any, i: number) => ({
+        invoice_id: creditNote.id,
+        description: item.description,
+        quantity: item.quantity,
+        unit: item.unit || "ks",
+        unit_price: -Math.abs(Number(item.unit_price)),
+        vat_rate: item.vat_rate,
+        vat_amount: -Math.abs(Number(item.vat_amount)),
+        total: -Math.abs(Number(item.total)),
+        sort_order: i,
+      }))
+
+      const { error: itemsError } = await supabase
+        .from("invoice_items")
+        .insert(creditItems)
+      if (itemsError) return { error: itemsError.message }
+    }
+
+    await supabase.from("audit_logs").insert({
+      organization_id: orgId,
+      user_id: user.id,
+      action: "CREDIT_NOTE_CREATED",
+      entity_type: "invoice",
+      entity_id: creditNote.id,
+      new_data: { invoice_number, original_invoice_id: originalInvoiceId },
+    })
+
+    revalidatePath("/invoices")
+    revalidatePath(`/invoices/${originalInvoiceId}`)
+    revalidatePath("/")
+    return { id: creditNote.id }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Unexpected error" }
+  }
+}
