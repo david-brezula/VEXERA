@@ -145,21 +145,59 @@ export default async function InvoicePrintPage({
           </tbody>
         </table>
 
-        {/* Totals */}
-        <div className="border-t border-gray-900 pt-4 ml-auto w-56 space-y-1 text-sm">
-          <div className="flex justify-between text-gray-500">
-            <span>Subtotal (net)</span>
-            <span className="tabular-nums">{formatEur(Number(invoice.subtotal))}</span>
-          </div>
-          <div className="flex justify-between text-gray-500">
-            <span>VAT</span>
-            <span className="tabular-nums">{formatEur(Number(invoice.vat_amount))}</span>
-          </div>
-          <div className="flex justify-between text-base font-bold border-t border-gray-900 pt-2">
-            <span>Total</span>
-            <span className="tabular-nums">{formatEur(Number(invoice.total))}</span>
-          </div>
-        </div>
+        {/* Totals with VAT breakdown */}
+        {(() => {
+          const items = invoice.invoice_items ?? []
+          const vatMap = new Map<number, { net: number; vat: number }>()
+          for (const item of items) {
+            const rate = Number(item.vat_rate)
+            const prev = vatMap.get(rate) ?? { net: 0, vat: 0 }
+            prev.net += Number(item.quantity) * Number(item.unit_price)
+            prev.vat += Number(item.vat_amount)
+            vatMap.set(rate, prev)
+          }
+          const breakdown = Array.from(vatMap.entries()).sort((a, b) => b[0] - a[0])
+          return (
+            <div className="border-t border-gray-900 pt-4 ml-auto w-72 text-sm">
+              {breakdown.length > 1 && (
+                <table className="w-full mb-2">
+                  <thead>
+                    <tr className="text-xs text-gray-500">
+                      <th className="text-left font-normal pb-1">VAT rate</th>
+                      <th className="text-right font-normal pb-1">Net amount</th>
+                      <th className="text-right font-normal pb-1">VAT</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {breakdown.map(([rate, { net, vat }]) => (
+                      <tr key={rate} className="text-gray-600">
+                        <td className="py-0.5">{rate}%</td>
+                        <td className="py-0.5 text-right tabular-nums">{formatEur(net)}</td>
+                        <td className="py-0.5 text-right tabular-nums">{formatEur(vat)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <div className="space-y-1">
+                <div className="flex justify-between text-gray-500">
+                  <span>Subtotal (net)</span>
+                  <span className="tabular-nums">{formatEur(Number(invoice.subtotal))}</span>
+                </div>
+                {breakdown.map(([rate, { vat }]) => (
+                  <div key={rate} className="flex justify-between text-gray-500">
+                    <span>VAT {rate}%</span>
+                    <span className="tabular-nums">{formatEur(vat)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-base font-bold border-t border-gray-900 pt-2">
+                  <span>Total</span>
+                  <span className="tabular-nums">{formatEur(Number(invoice.total))}</span>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Notes */}
         {invoice.notes && (
