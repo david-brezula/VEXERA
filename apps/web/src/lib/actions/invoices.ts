@@ -49,6 +49,7 @@ function buildItemsPayload(
       vat_amount: Math.round(vatAmt * 100) / 100,
       total: Math.round(gross * 100) / 100,
       sort_order: i,
+      product_id: (item as any).product_id || null,
     }
   })
 }
@@ -111,6 +112,7 @@ export async function createInvoiceAction(
         notes: values.notes || null,
         internal_notes: values.internal_notes || null,
         currency: values.currency,
+        contact_id: (values as any).contact_id || null,
         subtotal: Math.round(subtotal * 100) / 100,
         vat_amount: Math.round(vat_amount * 100) / 100,
         total: Math.round(total * 100) / 100,
@@ -195,6 +197,7 @@ export async function updateInvoiceAction(
         notes: values.notes || null,
         internal_notes: values.internal_notes || null,
         currency: values.currency,
+        contact_id: (values as any).contact_id || null,
         subtotal: Math.round(subtotal * 100) / 100,
         vat_amount: Math.round(vat_amount * 100) / 100,
         total: Math.round(total * 100) / 100,
