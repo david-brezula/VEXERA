@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react"
 import QRCode from "qrcode"
-import { encodePayBySquare, type PayBySquareInput } from "@/lib/pay-by-square"
+import { encodePayBySquareAction } from "@/lib/actions/pay-by-square"
+import type { PayBySquareInput } from "@/lib/pay-by-square"
 
 interface QrPaymentCodeProps {
   amount: number
@@ -35,7 +36,7 @@ export function QrPaymentCode(props: QrPaymentCodeProps) {
           beneficiaryName: props.beneficiaryName || undefined,
           note: props.note || undefined,
         }
-        const encoded = await encodePayBySquare(input)
+        const encoded = await encodePayBySquareAction(input)
         const svg = await QRCode.toString(encoded, { type: "svg", width: 160, margin: 1, errorCorrectionLevel: "M" })
         if (!cancelled) setSvgHtml(svg)
       } catch (err) {

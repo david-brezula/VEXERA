@@ -1,4 +1,11 @@
-import lzma from "lzma"
+/**
+ * PAY by square encoder — Slovak banking QR payment standard.
+ *
+ * Server-only: uses Node.js zlib for compression.
+ * Called from a server action, not directly from client components.
+ */
+
+import { deflateRawSync } from "zlib"
 
 export interface PayBySquareInput {
   amount: number
@@ -57,30 +64,21 @@ function buildDataString(input: PayBySquareInput): string {
   return fields.join("\t")
 }
 
-export async function encodePayBySquare(input: PayBySquareInput): Promise<string> {
+export function encodePayBySquare(input: PayBySquareInput): string {
   const dataString = buildDataString(input)
-  const dataBytes = new TextEncoder().encode(dataString)
+  const dataBytes = Buffer.from(dataString, "utf-8")
 
-  const compressed: number[] = await new Promise((resolve, reject) => {
-    lzma.compress(
-      dataString,
-      6,
-      (result: number[] | null, error?: Error) => {
-        if (error || !result) reject(error || new Error("LZMA compression failed"))
-        else resolve(result)
-      }
-    )
-  })
+  // Compress with deflate (raw, no header)
+  const compressed = deflateRawSync(dataBytes, { level: 9 })
 
+  // Prepend 2-byte big-endian uint16 of uncompressed length
   const uncompressedLen = dataBytes.length
-  const header = new Uint8Array([
-    (uncompressedLen >> 8) & 0xff,
-    uncompressedLen & 0xff,
-  ])
+  const header = Buffer.alloc(2)
+  header.writeUInt16BE(uncompressedLen, 0)
 
-  const combined = new Uint8Array(header.length + compressed.length)
-  combined.set(header, 0)
-  combined.set(new Uint8Array(compressed), header.length)
+  // Combine header + compressed data
+  const combined = Buffer.concat([header, compressed])
 
-  return "0000" + base32hex(combined)
+  // Base32hex encode and prepend version header
+  return "0000" + base32hex(new Uint8Array(combined))
 }
