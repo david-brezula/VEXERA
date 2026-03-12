@@ -54,6 +54,34 @@ function buildItemsPayload(
   })
 }
 
+async function updateContactStats(
+  supabase: SupabaseClient,
+  contactId: string,
+  invoiceTotal: number
+) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: contact } = await (supabase.from("contacts" as any) as any)
+      .select("invoice_count, total_invoiced")
+      .eq("id", contactId)
+      .single()
+
+    if (!contact) return
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.from("contacts" as any) as any)
+      .update({
+        invoice_count: (contact.invoice_count ?? 0) + 1,
+        total_invoiced: Math.round(
+          (Number(contact.total_invoiced ?? 0) + Math.abs(invoiceTotal)) * 100
+        ) / 100,
+      })
+      .eq("id", contactId)
+  } catch (err) {
+    console.error("[updateContactStats] Failed:", err)
+  }
+}
+
 // ─── createInvoiceAction ──────────────────────────────────────────────────────
 
 export async function createInvoiceAction(
@@ -136,6 +164,10 @@ export async function createInvoiceAction(
       entity_id: invoice.id,
       new_data: { invoice_number, status: "draft", total },
     })
+
+    if ((values as any).contact_id) {
+      await updateContactStats(supabase, (values as any).contact_id, total)
+    }
 
     revalidatePath("/invoices")
     revalidatePath("/")
