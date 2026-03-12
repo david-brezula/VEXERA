@@ -428,3 +428,55 @@ export async function createCreditNoteAction(
     return { error: err instanceof Error ? err.message : "Unexpected error" }
   }
 }
+
+// ─── sendInvoiceEmailAction ──────────────────────────────────────────────────
+
+export async function sendInvoiceEmailAction(
+  invoiceId: string,
+  recipientEmail: string
+): Promise<{ error?: string }> {
+  try {
+    const [supabase, orgId] = await Promise.all([createClient(), getActiveOrgId()])
+    if (!orgId) return { error: "No active organization" }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { error: "Not authenticated" }
+
+    const { data: invoice, error: fetchError } = await supabase
+      .from("invoices")
+      .select("id, invoice_number, status")
+      .eq("id", invoiceId)
+      .eq("organization_id", orgId)
+      .is("deleted_at", null)
+      .single()
+
+    if (fetchError || !invoice) return { error: "Invoice not found" }
+
+    // TODO: Generate PDF and send via transactional email service (Resend/Postmark)
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.from("email_tracking" as any) as any).insert({
+      organization_id: orgId,
+      invoice_id: invoiceId,
+      recipient_email: recipientEmail,
+      subject: `Invoice ${invoice.invoice_number}`,
+      status: "pending",
+    })
+
+    await supabase.from("audit_logs").insert({
+      organization_id: orgId,
+      user_id: user.id,
+      action: "INVOICE_EMAIL_QUEUED",
+      entity_type: "invoice",
+      entity_id: invoiceId,
+      new_data: { recipient_email: recipientEmail },
+    })
+
+    revalidatePath(`/invoices/${invoiceId}`)
+    return {}
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Unexpected error" }
+  }
+}

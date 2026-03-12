@@ -15,6 +15,7 @@ import { getInvoice } from "@/lib/data/invoices"
 import { getDocuments } from "@/lib/data/documents"
 import { InvoiceStatusBadge } from "@/components/invoices/invoice-status-badge"
 import { InvoiceActionsBar } from "@/components/invoices/invoice-actions"
+import { SendEmailDialog } from "@/components/invoices/send-email-dialog"
 import { InvoiceDocumentsTab } from "@/components/invoices/invoice-documents-tab"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -68,6 +69,9 @@ export default async function InvoiceDetailPage({
               PDF
             </a>
           </Button>
+          {(invoice.status === "sent" || invoice.status === "paid") && (
+            <SendEmailDialog invoiceId={id} invoiceNumber={invoice.invoice_number} />
+          )}
           {isEditable && (
             <Button variant="outline" size="sm" asChild>
               <Link href={`/invoices/${id}/edit`}>
