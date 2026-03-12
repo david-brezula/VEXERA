@@ -82,6 +82,46 @@ async function updateContactStats(
   }
 }
 
+async function updateProductStats(
+  supabase: SupabaseClient,
+  items: Array<{ product_id?: string; quantity: number; unit_price_net: number }>
+) {
+  try {
+    const productTotals = new Map<string, number>()
+    const productCounts = new Map<string, number>()
+    for (const item of items) {
+      const pid = (item as any).product_id
+      if (!pid) continue
+      const itemTotal = item.quantity * item.unit_price_net
+      productTotals.set(pid, (productTotals.get(pid) ?? 0) + itemTotal)
+      productCounts.set(pid, (productCounts.get(pid) ?? 0) + 1)
+    }
+
+    for (const [productId, revenue] of productTotals) {
+      const count = productCounts.get(productId) ?? 1
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: product } = await (supabase.from("products" as any) as any)
+        .select("times_invoiced, total_revenue")
+        .eq("id", productId)
+        .single()
+
+      if (!product) continue
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.from("products" as any) as any)
+        .update({
+          times_invoiced: (product.times_invoiced ?? 0) + count,
+          total_revenue: Math.round(
+            (Number(product.total_revenue ?? 0) + revenue) * 100
+          ) / 100,
+        })
+        .eq("id", productId)
+    }
+  } catch (err) {
+    console.error("[updateProductStats] Failed:", err)
+  }
+}
+
 // ─── createInvoiceAction ──────────────────────────────────────────────────────
 
 export async function createInvoiceAction(
@@ -168,6 +208,7 @@ export async function createInvoiceAction(
     if ((values as any).contact_id) {
       await updateContactStats(supabase, (values as any).contact_id, total)
     }
+    await updateProductStats(supabase, values.items)
 
     revalidatePath("/invoices")
     revalidatePath("/")
