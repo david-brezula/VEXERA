@@ -4,6 +4,33 @@ import { paginationRange, type PaginationParams, type PaginatedResult } from "./
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export type JournalEntryLine = {
+  id: string
+  account_number: string
+  account_name?: string
+  debit_amount: number
+  credit_amount: number
+}
+
+export type JournalEntry = {
+  id: string
+  entry_number: string
+  entry_date: string
+  description: string
+  reference_number: string | null
+  invoice_id: string | null
+  document_id: string | null
+  status: "draft" | "posted" | "reversed"
+  is_closing_entry: boolean
+  created_by: string | null
+  posted_by: string | null
+  posted_at: string | null
+  created_at: string
+  total_amount: number
+  lines: JournalEntryLine[]
+}
+
+/** @deprecated Use JournalEntry instead. Kept for backward compatibility. */
 export type LedgerEntry = {
   id: string
   entry_date: string
@@ -23,12 +50,16 @@ export type LedgerEntry = {
   created_at: string
 }
 
-export type LedgerFilters = {
+export type JournalEntryFilters = {
   status?: "draft" | "posted" | "reversed"
   date_from?: string
   date_to?: string
-  account_number?: string
   search?: string
+}
+
+/** @deprecated Use JournalEntryFilters instead. */
+export type LedgerFilters = JournalEntryFilters & {
+  account_number?: string
 }
 
 export type ChartAccount = {
@@ -61,24 +92,24 @@ export type LedgerSummary = {
   totalCredit: number
 }
 
-// ─── getLedgerEntries ─────────────────────────────────────────────────────────
+// ─── getJournalEntries ──────────────────────────────────────────────────────
 
-export async function getLedgerEntries(
-  filters?: LedgerFilters,
+export async function getJournalEntries(
+  filters?: JournalEntryFilters,
   pagination?: PaginationParams
-): Promise<PaginatedResult<LedgerEntry>> {
+): Promise<PaginatedResult<JournalEntry>> {
   const [supabase, orgId] = await Promise.all([createClient(), getActiveOrgId()])
   if (!orgId) return { data: [], total: 0, page: 1, pageSize: 50, totalPages: 0 }
 
   const { from, to, page, pageSize } = paginationRange(pagination)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = (supabase.from("ledger_entries" as any) as any)
+  let query = (supabase.from("journal_entries" as any) as any)
     .select(
-      "id, entry_date, description, reference_number, debit_account_number, credit_account_number, amount, currency, status, is_closing_entry, invoice_id, document_id, created_by, posted_by, posted_at, created_at",
+      "id, entry_number, entry_date, description, reference_number, invoice_id, document_id, status, is_closing_entry, created_by, posted_by, posted_at, created_at",
       { count: "exact" }
     )
-    .eq("organization_id", orgId)
+    .eq("org_id", orgId)
     .order("entry_date", { ascending: false })
     .range(from, to)
 
@@ -91,29 +122,83 @@ export async function getLedgerEntries(
   if (filters?.date_to) {
     query = query.lte("entry_date", filters.date_to)
   }
-  if (filters?.account_number) {
-    query = query.or(
-      `debit_account_number.eq.${filters.account_number},credit_account_number.eq.${filters.account_number}`
-    )
-  }
   if (filters?.search) {
     query = query.or(
-      `description.ilike.%${filters.search}%,reference_number.ilike.%${filters.search}%`
+      `description.ilike.%${filters.search}%,reference_number.ilike.%${filters.search}%,entry_number.ilike.%${filters.search}%`
     )
   }
 
   const { data, error, count } = await query
   if (error) throw error
 
+  const journalEntries = (data ?? []) as unknown as Array<Omit<JournalEntry, "total_amount" | "lines">>
+
+  if (journalEntries.length === 0) {
+    return {
+      data: [],
+      total: count ?? 0,
+      page,
+      pageSize,
+      totalPages: Math.ceil((count ?? 0) / pageSize),
+    }
+  }
+
+  // Batch-fetch all ledger entry lines for these journal entries
+  const entryIds = journalEntries.map((e) => e.id)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: linesRaw, error: linesError } = await (supabase.from("ledger_entries" as any) as any)
+    .select("id, journal_entry_id, account_number_new, debit_amount, credit_amount")
+    .in("journal_entry_id", entryIds)
+
+  if (linesError) throw linesError
+
+  const lines = (linesRaw ?? []) as unknown as Array<{
+    id: string
+    journal_entry_id: string
+    account_number_new: string
+    debit_amount: number
+    credit_amount: number
+  }>
+
+  // Group lines by journal_entry_id
+  const linesByEntry = new Map<string, JournalEntryLine[]>()
+  for (const line of lines) {
+    const entryLines = linesByEntry.get(line.journal_entry_id) ?? []
+    entryLines.push({
+      id: line.id,
+      account_number: line.account_number_new,
+      debit_amount: Number(line.debit_amount) || 0,
+      credit_amount: Number(line.credit_amount) || 0,
+    })
+    linesByEntry.set(line.journal_entry_id, entryLines)
+  }
+
+  const result: JournalEntry[] = journalEntries.map((je) => {
+    const entryLines = linesByEntry.get(je.id) ?? []
+    const totalAmount = entryLines.reduce((sum, l) => sum + l.debit_amount, 0)
+    return {
+      ...je,
+      total_amount: Math.round(totalAmount * 100) / 100,
+      lines: entryLines,
+    }
+  })
+
   const total = count ?? 0
   return {
-    data: (data ?? []) as unknown as LedgerEntry[],
+    data: result,
     total,
     page,
     pageSize,
     totalPages: Math.ceil(total / pageSize),
   }
 }
+
+/** @deprecated Use getJournalEntries instead. */
+export const getLedgerEntries = getJournalEntries as unknown as (
+  filters?: LedgerFilters,
+  pagination?: PaginationParams
+) => Promise<PaginatedResult<JournalEntry>>
 
 // ─── getChartOfAccounts ───────────────────────────────────────────────────────
 
@@ -144,78 +229,23 @@ export async function getAccountBalances(
   const [supabase, orgId] = await Promise.all([createClient(), getActiveOrgId()])
   if (!orgId) return []
 
-  // Fetch all posted entries, optionally filtered by period
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = (supabase.from("ledger_entries" as any) as any)
-    .select(
-      "debit_account_number, credit_account_number, amount"
-    )
-    .eq("organization_id", orgId)
-    .eq("status", "posted")
+  const { data, error } = await (supabase.rpc as any)("get_account_balances", {
+    p_org_id: orgId,
+    p_year: year ?? null,
+    p_month: month ?? null,
+  })
 
-  if (year) {
-    query = query.eq("period_year", year)
-  }
-  if (month) {
-    query = query.eq("period_month", month)
-  }
+  if (error) throw error
 
-  const { data: entries, error: entriesError } = await query
-  if (entriesError) throw entriesError
-
-  const typedEntries = (entries ?? []) as unknown as Array<{
-    debit_account_number: string
-    credit_account_number: string
-    amount: number
-  }>
-
-  // Fetch chart of accounts for names and types
-  const accounts = await getChartOfAccounts()
-  const accountMap = new Map(
-    accounts.map((a) => [a.account_number, { name: a.account_name, type: a.account_type }])
-  )
-
-  // Aggregate debits and credits by account
-  const balances = new Map<
-    string,
-    { debit_total: number; credit_total: number }
-  >()
-
-  for (const entry of typedEntries) {
-    // Debit side
-    const debit = balances.get(entry.debit_account_number) ?? {
-      debit_total: 0,
-      credit_total: 0,
-    }
-    debit.debit_total += Number(entry.amount)
-    balances.set(entry.debit_account_number, debit)
-
-    // Credit side
-    const credit = balances.get(entry.credit_account_number) ?? {
-      debit_total: 0,
-      credit_total: 0,
-    }
-    credit.credit_total += Number(entry.amount)
-    balances.set(entry.credit_account_number, credit)
-  }
-
-  const result: AccountBalance[] = []
-  for (const [accountNumber, totals] of balances) {
-    const info = accountMap.get(accountNumber)
-    result.push({
-      account_number: accountNumber,
-      account_name: info?.name ?? accountNumber,
-      account_type: info?.type ?? "unknown",
-      debit_total: Math.round(totals.debit_total * 100) / 100,
-      credit_total: Math.round(totals.credit_total * 100) / 100,
-      balance:
-        Math.round((totals.debit_total - totals.credit_total) * 100) / 100,
-    })
-  }
-
-  // Sort by account number
-  result.sort((a, b) => a.account_number.localeCompare(b.account_number))
-  return result
+  return ((data ?? []) as unknown as AccountBalance[]).map((row) => ({
+    account_number: row.account_number,
+    account_name: row.account_name,
+    account_type: row.account_type,
+    debit_total: Number(row.debit_total) || 0,
+    credit_total: Number(row.credit_total) || 0,
+    balance: Number(row.balance) || 0,
+  }))
 }
 
 // ─── getLedgerSummary ─────────────────────────────────────────────────────────
@@ -231,32 +261,48 @@ export async function getLedgerSummary(): Promise<LedgerSummary> {
       totalCredit: 0,
     }
 
+  // Count journal entries by status
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase.from("ledger_entries" as any) as any)
-    .select("status, amount, debit_account_number, credit_account_number")
-    .eq("organization_id", orgId)
+  const { data: entriesRaw, error } = await (supabase.from("journal_entries" as any) as any)
+    .select("id, status")
+    .eq("org_id", orgId)
 
   if (error) throw error
 
-  const entries = (data ?? []) as unknown as Array<{
-    status: string
-    amount: number
-    debit_account_number: string
-    credit_account_number: string
-  }>
+  const entries = (entriesRaw ?? []) as unknown as Array<{ id: string; status: string }>
 
   let draftCount = 0
   let postedCount = 0
-  let totalDebit = 0
-  let totalCredit = 0
+  const postedIds: string[] = []
 
   for (const entry of entries) {
     if (entry.status === "draft") draftCount++
-    if (entry.status === "posted") postedCount++
-    // Sum amounts for posted entries only
     if (entry.status === "posted") {
-      totalDebit += Number(entry.amount)
-      totalCredit += Number(entry.amount)
+      postedCount++
+      postedIds.push(entry.id)
+    }
+  }
+
+  let totalDebit = 0
+  let totalCredit = 0
+
+  if (postedIds.length > 0) {
+    // Fetch ledger_entries lines for posted journal entries to sum amounts
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: linesRaw, error: linesError } = await (supabase.from("ledger_entries" as any) as any)
+      .select("debit_amount, credit_amount")
+      .in("journal_entry_id", postedIds)
+
+    if (linesError) throw linesError
+
+    const lines = (linesRaw ?? []) as unknown as Array<{
+      debit_amount: number
+      credit_amount: number
+    }>
+
+    for (const line of lines) {
+      totalDebit += Number(line.debit_amount) || 0
+      totalCredit += Number(line.credit_amount) || 0
     }
   }
 
