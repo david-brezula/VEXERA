@@ -298,3 +298,112 @@ export async function acceptInvitationAction(token: string) {
 
   return { organizationId: invitation.organization_id, success: true }
 }
+
+export async function createAccountantInvitationAction(
+  email: string,
+  permissions: {
+    view_invoices: boolean
+    close_invoices: boolean
+    manage_ledger: boolean
+    view_documents: boolean
+    upload_documents: boolean
+  }
+) {
+  const [supabase, orgId] = await Promise.all([createClient(), getActiveOrgId()])
+  if (!orgId) return { error: "No active organization" }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: "Not authenticated" }
+
+  // Check caller is admin/owner
+  const callerRole = await getCurrentMemberRole(supabase, orgId, user.id)
+  if (!callerRole || callerRole === "member") return { error: "Insufficient permissions" }
+
+  // Check no pending accountant invite for this email
+  const { data: existing } = await (supabase as any)
+    .from("invitations")
+    .select("id")
+    .eq("organization_id", orgId)
+    .eq("invited_email", email)
+    .eq("role", "accountant")
+    .eq("status", "pending")
+    .maybeSingle()
+  if (existing) return { error: "An accountant invitation is already pending for this email" }
+
+  // Get org name and inviter name for email
+  const [{ data: org }, { data: profile }] = await Promise.all([
+    (supabase as any).from("organizations").select("name").eq("id", orgId).single(),
+    (supabase as any).from("profiles").select("full_name").eq("id", user.id).single(),
+  ])
+
+  // Create invitation with role 'accountant'
+  const { data: invitation, error } = await (supabase as any)
+    .from("invitations")
+    .insert({
+      organization_id: orgId,
+      invited_by: user.id,
+      invited_email: email,
+      role: "accountant",
+      status: "pending",
+    })
+    .select("token")
+    .single()
+
+  if (error) return { error: error.message }
+
+  // Send email
+  try {
+    await sendInvitationEmail({
+      to: email,
+      organizationName: org?.name || "Unknown",
+      inviterName: profile?.full_name || "A team member",
+      role: "accountant",
+      token: invitation.token,
+    })
+  } catch (emailError) {
+    console.error("Failed to send accountant invitation email:", emailError)
+  }
+
+  revalidatePath("/settings/members")
+  return { success: true }
+}
+
+export async function revokeAccountantAccessAction(accountantClientId: string) {
+  const [supabase, orgId] = await Promise.all([createClient(), getActiveOrgId()])
+  if (!orgId) return { error: "No active organization" }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: "Not authenticated" }
+
+  // Either the accountant or an admin of the client org can revoke
+  const callerRole = await getCurrentMemberRole(supabase, orgId, user.id)
+
+  const { data: link } = await (supabase as any)
+    .from("accountant_clients")
+    .select("id, accountant_id, organization_id")
+    .eq("id", accountantClientId)
+    .single()
+
+  if (!link) return { error: "Accountant link not found" }
+
+  // Allow if caller is the accountant OR admin/owner of the org
+  const isAccountant = link.accountant_id === user.id
+  const isOrgAdmin = link.organization_id === orgId && (callerRole === "owner" || callerRole === "admin")
+
+  if (!isAccountant && !isOrgAdmin) return { error: "Insufficient permissions" }
+
+  const { error } = await (supabase as any)
+    .from("accountant_clients")
+    .update({ status: "revoked", revoked_at: new Date().toISOString() })
+    .eq("id", accountantClientId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath("/settings/members")
+  revalidatePath("/dashboard")
+  return { success: true }
+}
