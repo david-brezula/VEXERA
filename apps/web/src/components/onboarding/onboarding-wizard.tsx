@@ -23,9 +23,11 @@ import {
   Store,
   Calculator,
   Loader2,
+  Users,
 } from "lucide-react"
 
 import type { OrganizationType } from "@vexera/types"
+import { TeamStep } from "@/components/onboarding/team-step"
 import { useSupabase } from "@/providers/supabase-provider"
 import { useOrganization } from "@/providers/organization-provider"
 import { cn } from "@/lib/utils"
@@ -89,8 +91,9 @@ const STEPS = [
   { id: 0, label: "Typ organizacie", icon: Building2 },
   { id: 1, label: "Profil organizacie", icon: Building2 },
   { id: 2, label: "Kontakt a adresa", icon: MapPin },
-  { id: 3, label: "Dokumenty", icon: FileText },
-  { id: 4, label: "Banka", icon: Landmark },
+  { id: 3, label: "Tim", icon: Users },
+  { id: 4, label: "Dokumenty", icon: FileText },
+  { id: 5, label: "Banka", icon: Landmark },
 ] as const
 
 // ─── Progress bar ─────────────────────────────────────────────────────────────
@@ -885,10 +888,14 @@ export function OnboardingWizard() {
       description: "Pridajte kontaktne udaje a adresu sidla.",
     },
     3: {
+      title: "Pozvite tim",
+      description: "Pozvite clenov timu na spolupracu vo vasej organizacii.",
+    },
+    4: {
       title: "Nahrajte dokumenty",
       description: "Vyberte sposob importu faktur a blockov.",
     },
-    4: {
+    5: {
       title: "Pripojte banku",
       description: "Importujte bankove vypisy pre automaticke parovanie transakcii.",
     },
@@ -932,9 +939,12 @@ export function OnboardingWizard() {
             <Step2Form onNext={goNext} onBack={goBack} />
           )}
           {currentStep === 3 && (
-            <Step3Guidance onNext={goNext} onBack={goBack} />
+            <TeamStep onNext={goNext} onBack={goBack} />
           )}
           {currentStep === 4 && (
+            <Step3Guidance onNext={goNext} onBack={goBack} />
+          )}
+          {currentStep === 5 && (
             <Step4Guidance onFinish={handleFinish} onBack={goBack} />
           )}
         </CardContent>
