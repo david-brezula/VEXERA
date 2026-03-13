@@ -29,6 +29,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { EmailConnection } from "@/components/settings/email-connection"
 
 export default function SettingsPage() {
@@ -36,6 +43,7 @@ export default function SettingsPage() {
   const { activeOrg } = useOrganization()
   const { isAdmin } = useCurrentMemberRole()
   const [isLoading, setIsLoading] = useState(false)
+  const [vatFilingFrequency, setVatFilingFrequency] = useState<string>("quarterly")
 
   const form = useForm<CreateOrganizationFormValues>({
     resolver: zodResolver(createOrganizationSchema),
@@ -73,12 +81,12 @@ export default function SettingsPage() {
       })
 
       // Fetch full org data
-      supabase
+      ;(supabase as any)
         .from("organizations")
-        .select("name, ico, dic, ic_dph, address_street, address_city, address_zip, address_country, email, phone, bank_iban, bank_swift")
+        .select("name, ico, dic, ic_dph, address_street, address_city, address_zip, address_country, email, phone, bank_iban, bank_swift, vat_filing_frequency")
         .eq("id", activeOrg.id)
         .single()
-        .then(({ data }) => {
+        .then(({ data }: { data: any }) => {
           if (data) {
             form.reset({
               name: data.name,
@@ -94,6 +102,7 @@ export default function SettingsPage() {
               bank_iban: data.bank_iban ?? "",
               bank_swift: data.bank_swift ?? "",
             })
+            setVatFilingFrequency(data.vat_filing_frequency ?? "quarterly")
           }
         })
     }
@@ -104,7 +113,7 @@ export default function SettingsPage() {
     setIsLoading(true)
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("organizations")
         .update({
           name: values.name,
@@ -119,6 +128,7 @@ export default function SettingsPage() {
           phone: values.phone || null,
           bank_iban: values.bank_iban || null,
           bank_swift: values.bank_swift || null,
+          vat_filing_frequency: values.ic_dph ? vatFilingFrequency : null,
         })
         .eq("id", activeOrg.id)
 
@@ -279,6 +289,31 @@ export default function SettingsPage() {
                   )}
                 />
               </div>
+              {form.watch("ic_dph") && (
+                <div className="pt-2 border-t">
+                  <FormItem>
+                    <FormLabel>VAT Filing Frequency</FormLabel>
+                    <Select
+                      value={vatFilingFrequency}
+                      onValueChange={setVatFilingFrequency}
+                      disabled={!isAdmin}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select frequency" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                        <SelectItem value="quarterly">Quarterly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      How often you file VAT returns with the tax authority.
+                    </p>
+                  </FormItem>
+                </div>
+              )}
               {isAdmin ? (
                 <Button type="submit" disabled={isLoading}>
                   {isLoading ? "Saving..." : "Save changes"}
