@@ -7,6 +7,7 @@ import { toast } from "sonner"
 
 import { useSupabase } from "@/providers/supabase-provider"
 import { useOrganization } from "@/providers/organization-provider"
+import { useCurrentMemberRole } from "@/hooks/use-current-member-role"
 import {
   createOrganizationSchema,
   type CreateOrganizationFormValues,
@@ -33,6 +34,7 @@ import { EmailConnection } from "@/components/settings/email-connection"
 export default function SettingsPage() {
   const { supabase } = useSupabase()
   const { activeOrg } = useOrganization()
+  const { isAdmin } = useCurrentMemberRole()
   const [isLoading, setIsLoading] = useState(false)
 
   const form = useForm<CreateOrganizationFormValues>({
@@ -161,7 +163,7 @@ export default function SettingsPage() {
                   <FormItem>
                     <FormLabel>Company name</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input disabled={!isAdmin} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -175,7 +177,7 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel>ICO</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input disabled={!isAdmin} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -188,7 +190,7 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel>DIC</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input disabled={!isAdmin} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -201,7 +203,7 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel>IC DPH</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input disabled={!isAdmin} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -215,7 +217,7 @@ export default function SettingsPage() {
                   <FormItem>
                     <FormLabel>Street</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input disabled={!isAdmin} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -229,7 +231,7 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel>City</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input disabled={!isAdmin} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -242,7 +244,7 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel>ZIP</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input disabled={!isAdmin} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -257,7 +259,7 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel>IBAN</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input disabled={!isAdmin} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -270,16 +272,22 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel>SWIFT</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input disabled={!isAdmin} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Saving..." : "Save changes"}
-              </Button>
+              {isAdmin ? (
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? "Saving..." : "Save changes"}
+                </Button>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Only admins can edit organization settings.
+                </p>
+              )}
             </form>
           </Form>
         </CardContent>
