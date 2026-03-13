@@ -36,12 +36,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import {
   getVatReturnDetailAction,
   computeVatReturnAction,
   finalizeVatReturnAction,
@@ -49,6 +43,7 @@ import {
   markVatReturnSubmittedAction,
   updateVatReturnNotesAction,
 } from "@/lib/actions/vat-returns"
+import { exportKvDphAction, exportDpDphAction } from "@/lib/actions/xml-export"
 import type { VatReturn } from "@vexera/types"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -151,6 +146,31 @@ export default function VatReturnDetailPage() {
       setSavingNotes(false)
     }
   }, [year, month, notes])
+
+  const handleExportXml = useCallback(
+    async (exportFn: (y: number, m: number) => Promise<{ xml?: string; filename?: string; error?: string }>) => {
+      setActionLoading("export")
+      try {
+        const result = await exportFn(year, month)
+        if (result.error || !result.xml || !result.filename) {
+          console.error(result.error ?? "Export failed")
+          return
+        }
+        const blob = new Blob([result.xml], { type: "application/xml;charset=utf-8" })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = result.filename
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      } finally {
+        setActionLoading(null)
+      }
+    },
+    [year, month]
+  )
 
   if (isLoading) {
     return (
@@ -447,37 +467,23 @@ export default function VatReturnDetailPage() {
 
             {isFinal && (
               <>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span>
-                        <Button variant="outline" disabled>
-                          <Download className="h-4 w-4 mr-2" />
-                          Export KV DPH
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Pripravujeme v dalsej faze</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportXml(exportKvDphAction)}
+                  disabled={actionLoading !== null}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {actionLoading === "export" ? "Exportujem..." : "Export KV DPH"}
+                </Button>
 
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span>
-                        <Button variant="outline" disabled>
-                          <Download className="h-4 w-4 mr-2" />
-                          Export DP DPH
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Pripravujeme v dalsej faze</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportXml(exportDpDphAction)}
+                  disabled={actionLoading !== null}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {actionLoading === "export" ? "Exportujem..." : "Export DP DPH"}
+                </Button>
 
                 <Button
                   onClick={() =>
@@ -506,37 +512,23 @@ export default function VatReturnDetailPage() {
 
             {isSubmitted && (
               <>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span>
-                        <Button variant="outline" disabled>
-                          <Download className="h-4 w-4 mr-2" />
-                          Export KV DPH
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Pripravujeme v dalsej faze</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportXml(exportKvDphAction)}
+                  disabled={actionLoading !== null}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {actionLoading === "export" ? "Exportujem..." : "Export KV DPH"}
+                </Button>
 
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span>
-                        <Button variant="outline" disabled>
-                          <Download className="h-4 w-4 mr-2" />
-                          Export DP DPH
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Pripravujeme v dalsej faze</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportXml(exportDpDphAction)}
+                  disabled={actionLoading !== null}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {actionLoading === "export" ? "Exportujem..." : "Export DP DPH"}
+                </Button>
 
                 <Badge className="bg-green-100 text-green-800 hover:bg-green-100 self-center px-4 py-2">
                   Podane
