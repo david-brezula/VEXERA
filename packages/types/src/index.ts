@@ -389,6 +389,7 @@ export interface DocumentComment {
 // ─── Accountant Dashboard ────────────────────────────────────────────────────
 
 export interface ClientSummary {
+  accountant_client_id: string
   organization_id: string
   organization_name: string
   unprocessed_docs: number

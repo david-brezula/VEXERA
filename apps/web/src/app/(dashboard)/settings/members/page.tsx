@@ -30,8 +30,10 @@ import {
   removeMemberAction,
   revokeInvitationAction,
   resendInvitationAction,
+  revokeAccountantAccessAction,
 } from "@/lib/actions/members"
-import { CrownIcon, MoreHorizontalIcon } from "lucide-react"
+import { InviteAccountantDialog } from "@/components/members/invite-accountant-dialog"
+import { CrownIcon, MoreHorizontalIcon, ShieldCheckIcon } from "lucide-react"
 
 type MemberProfile = {
   id: string
@@ -55,6 +57,18 @@ type InvitationRow = {
   expires_at: string
   created_at: string
   invited_by_profile: { full_name: string | null } | null
+}
+
+type AccountantClientRow = {
+  id: string
+  accountant_id: string
+  status: string
+  accepted_at: string | null
+  profiles: {
+    full_name: string | null
+    email: string | null
+    avatar_url: string | null
+  } | null
 }
 
 function getInitials(name: string | null | undefined, email: string): string {
@@ -123,6 +137,45 @@ export default function MembersPage() {
     },
     enabled: !!activeOrg && isAdmin,
   })
+
+  const isAccountingFirm = activeOrg?.organization_type === "accounting_firm"
+
+  const { data: accountantClients, isLoading: accountantLoading } = useQuery({
+    queryKey: ["accountant-clients", activeOrg?.id],
+    queryFn: async () => {
+      if (!activeOrg) return []
+      const { data, error } = await (supabase as any)
+        .from("accountant_clients")
+        .select(
+          `
+          id,
+          accountant_id,
+          status,
+          accepted_at,
+          profiles:accountant_id(full_name, email, avatar_url)
+        `
+        )
+        .eq("organization_id", activeOrg.id)
+        .eq("status", "active")
+
+      if (error) throw error
+      return (data ?? []) as AccountantClientRow[]
+    },
+    enabled: !!activeOrg && !isAccountingFirm,
+  })
+
+  function handleRevokeAccountant(accountantClientId: string, name: string) {
+    if (!window.confirm(`Are you sure you want to revoke access for ${name}?`)) return
+    startTransition(async () => {
+      const result = await revokeAccountantAccessAction(accountantClientId)
+      if (result.error) {
+        toast.error(result.error)
+      } else {
+        toast.success("Accountant access revoked")
+        queryClient.invalidateQueries({ queryKey: ["accountant-clients", activeOrg?.id] })
+      }
+    })
+  }
 
   function handleChangeRole(memberId: string, newRole: "admin" | "member") {
     startTransition(async () => {
@@ -359,6 +412,79 @@ export default function MembersPage() {
                   </div>
                 ))}
               </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {!isAccountingFirm && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <ShieldCheckIcon className="h-5 w-5" />
+                  Your Accountant
+                </CardTitle>
+                <CardDescription>
+                  External accountant with access to your organization.
+                </CardDescription>
+              </div>
+              {isAdmin && (!accountantClients || accountantClients.length === 0) && (
+                <InviteAccountantDialog />
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {accountantLoading ? (
+              <Skeleton className="h-14 w-full" />
+            ) : accountantClients && accountantClients.length > 0 ? (
+              <div className="space-y-3">
+                {accountantClients.map((ac) => {
+                  const profile = ac.profiles
+                  const name = profile?.full_name ?? "Unnamed"
+                  const email = profile?.email ?? ""
+                  return (
+                    <div
+                      key={ac.id}
+                      className="flex items-center justify-between rounded-md border p-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-9 w-9">
+                          {profile?.avatar_url && (
+                            <AvatarImage src={profile.avatar_url} alt={name} />
+                          )}
+                          <AvatarFallback>
+                            {getInitials(profile?.full_name, email)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">{name}</p>
+                          <p className="text-sm text-muted-foreground">{email}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">Accountant</Badge>
+                        {isAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={isPending}
+                            className="text-destructive"
+                            onClick={() => handleRevokeAccountant(ac.id, name)}
+                          >
+                            Revoke Access
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                No accountant linked. Invite an accountant to give them access to your financial data.
+              </p>
             )}
           </CardContent>
         </Card>
