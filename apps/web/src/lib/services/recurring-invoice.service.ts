@@ -10,6 +10,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { enqueueJob } from "@/lib/services/queue.service"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -295,6 +296,24 @@ export async function processRecurringInvoices(
     const invoiceId = await generateInvoiceFromTemplate(supabase, template)
     if (invoiceId) {
       generated++
+
+      // Enqueue auto-send email job if configured
+      if (template.auto_send && template.send_to_email) {
+        try {
+          await enqueueJob(supabase, {
+            organizationId: template.organization_id,
+            jobType: "recurring_invoice",
+            payload: {
+              action: "send_email",
+              invoiceId,
+              recipientEmail: template.send_to_email,
+            },
+          })
+        } catch (err) {
+          console.error("[recurring-invoice] Failed to enqueue auto-send job:", err)
+          // Don't count as error — invoice was still generated successfully
+        }
+      }
     } else {
       errors++
     }
