@@ -15,6 +15,7 @@ import {
   Users,
   Receipt,
   Calculator,
+  Palette,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -64,6 +65,7 @@ const navGroups = [
 
 const bottomItems = [
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/settings/invoice-template", label: "Invoice Template", icon: Palette },
 ]
 
 // ─── Logo mark ────────────────────────────────────────────────────────────────

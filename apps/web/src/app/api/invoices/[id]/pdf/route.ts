@@ -5,6 +5,7 @@ import QRCode from "qrcode"
 import { getInvoice } from "@/lib/data/invoices"
 import { InvoicePdfDocument } from "@/components/invoices/invoice-pdf"
 import { encodePayBySquare } from "@/lib/pay-by-square"
+import { getInvoiceTemplateSettingsAction, type InvoiceTemplateSettings } from "@/lib/actions/invoice-template"
 
 export async function GET(
   _request: Request,
@@ -35,7 +36,15 @@ export async function GET(
       qrDataUrl = await QRCode.toDataURL(payData, { width: 150, margin: 1 })
     }
 
-    const element = createElement(InvoicePdfDocument, { invoice, qrDataUrl })
+    // Fetch template settings for the organization
+    let templateSettings: InvoiceTemplateSettings | undefined
+    try {
+      templateSettings = await getInvoiceTemplateSettingsAction()
+    } catch {
+      // Continue without template settings if fetch fails
+    }
+
+    const element = createElement(InvoicePdfDocument, { invoice, qrDataUrl, templateSettings })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const buffer = await renderToBuffer(element as any)
     const filename = `invoice-${invoice.invoice_number}.pdf`

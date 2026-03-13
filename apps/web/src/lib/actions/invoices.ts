@@ -15,6 +15,7 @@ import { InvoicePdfDocument } from "@/components/invoices/invoice-pdf"
 import { createTracking, getTrackingPixelHtml } from "@/lib/services/email-tracking.service"
 import { encodePayBySquare } from "@/lib/pay-by-square"
 import { postInvoiceToLedger } from "./invoice-posting"
+import { getInvoiceTemplateSettingsAction, type InvoiceTemplateSettings } from "./invoice-template"
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -568,8 +569,15 @@ export async function sendInvoiceEmailAction(
       qrDataUrl = await QRCode.toDataURL(payData, { width: 150, margin: 1 })
     }
 
-    // 3. Generate PDF buffer
-    const element = createElement(InvoicePdfDocument, { invoice, qrDataUrl })
+    // 3. Fetch template settings + generate PDF buffer
+    let templateSettings: InvoiceTemplateSettings | undefined
+    try {
+      templateSettings = await getInvoiceTemplateSettingsAction()
+    } catch {
+      // Continue without template settings if fetch fails
+    }
+
+    const element = createElement(InvoicePdfDocument, { invoice, qrDataUrl, templateSettings })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pdfBuffer = await renderToBuffer(element as any)
 

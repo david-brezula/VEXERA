@@ -18,6 +18,7 @@ import { createTracking, getTrackingPixelHtml } from "@/lib/services/email-track
 import { encodePayBySquare } from "@/lib/pay-by-square"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { InvoiceDetail } from "@/lib/data/invoices"
+import { DEFAULT_TEMPLATE_SETTINGS, type InvoiceTemplateSettings } from "@/lib/actions/invoice-template"
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -31,7 +32,7 @@ async function fetchInvoiceForEmail(
 ): Promise<InvoiceDetail | null> {
   const { data, error } = await supabase
     .from("invoices")
-    .select("*, invoice_items(*), organization:organizations!organization_id(logo_url)")
+    .select("*, invoice_items(*), organization:organizations!organization_id(logo_url, invoice_template_settings)")
     .eq("id", invoiceId)
     .is("deleted_at", null)
     .single()
@@ -87,8 +88,13 @@ export async function sendInvoiceEmailSystem(
       }
     }
 
-    // 3. Generate PDF buffer
-    const element = createElement(InvoicePdfDocument, { invoice, qrDataUrl })
+    // 3. Generate PDF buffer with template settings
+    const orgData = (invoice as any).organization
+    const templateSettings: InvoiceTemplateSettings = orgData?.invoice_template_settings
+      ? { ...DEFAULT_TEMPLATE_SETTINGS, ...orgData.invoice_template_settings }
+      : DEFAULT_TEMPLATE_SETTINGS
+
+    const element = createElement(InvoicePdfDocument, { invoice, qrDataUrl, templateSettings })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pdfBuffer = await renderToBuffer(element as any)
 
