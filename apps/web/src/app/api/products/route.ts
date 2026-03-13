@@ -20,7 +20,7 @@ const createSchema = z.object({
   sku: z.string().nullish(),
   unit: z.string().default("ks"),
   unit_price_net: z.number().min(0),
-  vat_rate: z.number().min(0).max(100).default(20),
+  vat_rate: z.number().min(0).max(100).default(23),
   currency: z.string().default("EUR"),
   is_active: z.boolean().default(true),
 })

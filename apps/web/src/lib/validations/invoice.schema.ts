@@ -13,8 +13,8 @@ export const invoiceItemSchema = z.object({
     .number({ error: "Must be a number" })
     .min(0, "Cannot be negative"),
   vat_rate: z.union([
-    z.literal(20),
-    z.literal(10),
+    z.literal(23),
+    z.literal(19),
     z.literal(5),
     z.literal(0),
   ]),
@@ -122,7 +122,7 @@ export function defaultInvoiceValues(type: "issued" | "received" = "issued"): In
         quantity: 1,
         unit: "ks",
         unit_price_net: 0,
-        vat_rate: 20,
+        vat_rate: 23,
         sort_order: 0,
         product_id: "",
       },

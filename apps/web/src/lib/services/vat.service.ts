@@ -1,33 +1,50 @@
 /**
  * VAT pre-calculation service (Slovak tax rules).
  *
- * - calculateVatReturn    — compute VAT position for a given quarter
- * - getCurrentQuarterVat  — convenience for current quarter
- * - getVatTimeline        — last N quarters for trend chart
+ * - calculateVatReturn    — compute VAT position for a given month
+ * - getCurrentMonthVat    — convenience for current month
+ * - getVatTimeline        — last N months for trend chart
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { VatReturn } from "@vexera/types"
+import { getActiveVatRates } from "@/lib/services/legislative.service"
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-/** Returns { start, end } ISO date strings for a given year+quarter. */
-function quarterRange(year: number, quarter: number) {
-  const startMonth = (quarter - 1) * 3 // 0-indexed: 0, 3, 6, 9
-  const start = new Date(year, startMonth, 1)
-  const end = new Date(year, startMonth + 3, 0) // last day of last month in quarter
+/** Returns { start, end } ISO date strings for a given year+month. */
+function monthRange(year: number, month: number) {
+  const start = new Date(year, month - 1, 1) // month is 1-based
+  const end = new Date(year, month, 0) // last day of month
   return {
     start: start.toISOString().split("T")[0],
     end: end.toISOString().split("T")[0],
   }
 }
 
-function currentQuarter(): { year: number; quarter: number } {
+function currentMonth(): { year: number; month: number } {
   const now = new Date()
   return {
     year: now.getFullYear(),
-    quarter: Math.ceil((now.getMonth() + 1) / 3),
+    month: now.getMonth() + 1,
   }
+}
+
+/** Bucket a rate into standard/reduced_1/reduced_2 based on active legislative rates */
+function bucketRate(
+  rate: number,
+  activeRates: number[],
+): "standard" | "reduced_1" | "reduced_2" {
+  // activeRates is sorted descending (e.g. [23, 19, 5, 0])
+  const [standard = 23, reduced1 = 19] = activeRates
+  // Threshold: midpoint between standard and reduced_1
+  const threshold1 = (standard + reduced1) / 2
+  // Threshold: midpoint between reduced_1 and 5
+  const threshold2 = (reduced1 + 5) / 2
+
+  if (rate >= threshold1) return "standard"
+  if (rate >= threshold2) return "reduced_1"
+  return "reduced_2"
 }
 
 // ─── calculateVatReturn ─────────────────────────────────────────────────────
@@ -36,11 +53,18 @@ export async function calculateVatReturn(
   supabase: SupabaseClient,
   orgId: string,
   year: number,
-  quarter: number,
+  month: number,
 ): Promise<VatReturn> {
-  const { start, end } = quarterRange(year, quarter)
+  const { start, end } = monthRange(year, month)
 
-  // 1. Get approved/archived documents in this quarter
+  // Fetch active VAT rates from legislative rules
+  const vatRateRules = await getActiveVatRates(supabase, "SK")
+  const activeRates = vatRateRules.map((r) => r.rate).filter((r) => r > 0)
+  // Fallback to default rates if legislative service returns empty
+  const standardRate = activeRates[0] ?? 23
+  const reducedRate1 = activeRates[1] ?? 19
+
+  // 1. Get approved/archived documents in this month
   const { data: docs, error: docsErr } = await supabase
     .from("documents")
     .select(
@@ -66,7 +90,7 @@ export async function calculateVatReturn(
   }
   const docRows = (docs ?? []) as DocRow[]
 
-  // 2. Also get invoices for the same period (may not have documents)
+  // 2. Also get invoices for the same period
   const { data: invoices, error: invErr } = await supabase
     .from("invoices")
     .select("id, invoice_type, total, vat_amount, issue_date")
@@ -88,10 +112,14 @@ export async function calculateVatReturn(
   const invRows = (invoices ?? []) as InvRow[]
 
   // 2b. Get invoice items with per-line VAT rates for proper bucketing
-  const invoiceIds = invRows.map(i => i.id)
-  const invoiceTypeMap = new Map(invRows.map(i => [i.id, i.invoice_type]))
+  const invoiceIds = invRows.map((i) => i.id)
+  const invoiceTypeMap = new Map(invRows.map((i) => [i.id, i.invoice_type]))
 
-  type ItemRow = { invoice_id: string; vat_rate: number | null; vat_amount: number | null }
+  type ItemRow = {
+    invoice_id: string
+    vat_rate: number | null
+    vat_amount: number | null
+  }
   let itemRows: ItemRow[] = []
   if (invoiceIds.length > 0) {
     const { data: items, error: itemsErr } = await supabase
@@ -103,21 +131,19 @@ export async function calculateVatReturn(
     itemRows = (items ?? []) as ItemRow[]
   }
 
-  // 3. Accumulate VAT by rate and direction
-  //    Output = invoice_issued documents / issued invoices
-  //    Input  = invoice_received documents / received invoices
+  // 3. Accumulate VAT by rate bucket and direction
   const vatBuckets = {
-    output_20: 0,
-    output_10: 0,
+    output_standard: 0,
+    output_reduced1: 0,
     output_5: 0,
-    input_20: 0,
-    input_10: 0,
+    input_standard: 0,
+    input_reduced1: 0,
     input_5: 0,
     base_output: 0,
     base_input: 0,
   }
 
-  // Track processed entity IDs to avoid double-counting when both doc and invoice exist
+  // Track processed entity IDs to avoid double-counting
   const processedIds = new Set<string>()
 
   // Process documents first (they have OCR-verified data)
@@ -125,26 +151,27 @@ export async function calculateVatReturn(
     processedIds.add(doc.id)
     const vatAmount = Number(doc.vat_amount) || 0
     const totalAmount = Number(doc.total_amount) || 0
-    const rate = Number(doc.vat_rate) || 20
+    const rate = Number(doc.vat_rate) || standardRate
+    const bucket = bucketRate(rate, activeRates)
     const isOutput = doc.document_type === "invoice_issued"
 
     if (isOutput) {
       vatBuckets.base_output += totalAmount - vatAmount
-      if (rate === 20) vatBuckets.output_20 += vatAmount
-      else if (rate === 10) vatBuckets.output_10 += vatAmount
-      else if (rate === 5) vatBuckets.output_5 += vatAmount
+      if (bucket === "standard") vatBuckets.output_standard += vatAmount
+      else if (bucket === "reduced_1") vatBuckets.output_reduced1 += vatAmount
+      else vatBuckets.output_5 += vatAmount
     } else if (
       doc.document_type === "invoice_received" ||
       doc.document_type === "receipt"
     ) {
       vatBuckets.base_input += totalAmount - vatAmount
-      if (rate === 20) vatBuckets.input_20 += vatAmount
-      else if (rate === 10) vatBuckets.input_10 += vatAmount
-      else if (rate === 5) vatBuckets.input_5 += vatAmount
+      if (bucket === "standard") vatBuckets.input_standard += vatAmount
+      else if (bucket === "reduced_1") vatBuckets.input_reduced1 += vatAmount
+      else vatBuckets.input_5 += vatAmount
     }
   }
 
-  // Process invoice-level totals for taxable base (skip already-processed documents)
+  // Process invoice-level totals for taxable base (skip already-processed)
   for (const inv of invRows) {
     if (processedIds.has(inv.id)) continue
     const vatAmount = Number(inv.vat_amount) || 0
@@ -160,27 +187,27 @@ export async function calculateVatReturn(
 
   // Process invoice items with actual per-line VAT rates for bucketing
   for (const item of itemRows) {
-    // Skip items belonging to invoices already processed via documents
     if (processedIds.has(item.invoice_id)) continue
     const vatAmount = Number(item.vat_amount) || 0
-    const rate = Number(item.vat_rate) || 20
+    const rate = Number(item.vat_rate) || standardRate
+    const bucket = bucketRate(rate, activeRates)
     const isOutput = invoiceTypeMap.get(item.invoice_id) === "issued"
 
     if (isOutput) {
-      if (rate === 20) vatBuckets.output_20 += vatAmount
-      else if (rate === 10) vatBuckets.output_10 += vatAmount
-      else if (rate === 5) vatBuckets.output_5 += vatAmount
+      if (bucket === "standard") vatBuckets.output_standard += vatAmount
+      else if (bucket === "reduced_1") vatBuckets.output_reduced1 += vatAmount
+      else vatBuckets.output_5 += vatAmount
     } else {
-      if (rate === 20) vatBuckets.input_20 += vatAmount
-      else if (rate === 10) vatBuckets.input_10 += vatAmount
-      else if (rate === 5) vatBuckets.input_5 += vatAmount
+      if (bucket === "standard") vatBuckets.input_standard += vatAmount
+      else if (bucket === "reduced_1") vatBuckets.input_reduced1 += vatAmount
+      else vatBuckets.input_5 += vatAmount
     }
   }
 
   const totalOutputVat =
-    vatBuckets.output_20 + vatBuckets.output_10 + vatBuckets.output_5
+    vatBuckets.output_standard + vatBuckets.output_reduced1 + vatBuckets.output_5
   const totalInputVat =
-    vatBuckets.input_20 + vatBuckets.input_10 + vatBuckets.input_5
+    vatBuckets.input_standard + vatBuckets.input_reduced1 + vatBuckets.input_5
   const vatLiability = totalOutputVat - totalInputVat
 
   const round = (n: number) => Math.round(n * 100) / 100
@@ -189,12 +216,12 @@ export async function calculateVatReturn(
   const payload = {
     organization_id: orgId,
     period_year: year,
-    period_quarter: quarter,
-    vat_output_20: round(vatBuckets.output_20),
-    vat_output_10: round(vatBuckets.output_10),
+    period_month: month,
+    vat_output_23: round(vatBuckets.output_standard),
+    vat_output_19: round(vatBuckets.output_reduced1),
     vat_output_5: round(vatBuckets.output_5),
-    vat_input_20: round(vatBuckets.input_20),
-    vat_input_10: round(vatBuckets.input_10),
+    vat_input_23: round(vatBuckets.input_standard),
+    vat_input_19: round(vatBuckets.input_reduced1),
     vat_input_5: round(vatBuckets.input_5),
     total_output_vat: round(totalOutputVat),
     total_input_vat: round(totalInputVat),
@@ -202,15 +229,17 @@ export async function calculateVatReturn(
     taxable_base_output: round(vatBuckets.base_output),
     taxable_base_input: round(vatBuckets.base_input),
     status: "draft" as const,
-    document_count: docRows.length + invRows.filter((i) => !processedIds.has(i.id)).length,
+    document_count:
+      docRows.length +
+      invRows.filter((i) => !processedIds.has(i.id)).length,
     computed_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }
 
-  const { data: upserted, error: upsertErr } = await supabase
+  const { data: upserted, error: upsertErr } = await (supabase as any)
     .from("vat_returns")
     .upsert(payload, {
-      onConflict: "organization_id,period_year,period_quarter",
+      onConflict: "organization_id,period_year,period_month",
     })
     .select()
     .single()
@@ -231,48 +260,51 @@ export async function calculateVatReturn(
   return upserted as unknown as VatReturn
 }
 
-// ─── getCurrentQuarterVat ───────────────────────────────────────────────────
+// ─── getCurrentMonthVat ─────────────────────────────────────────────────────
 
-export async function getCurrentQuarterVat(
+export async function getCurrentMonthVat(
   supabase: SupabaseClient,
   orgId: string,
 ): Promise<VatReturn> {
-  const { year, quarter } = currentQuarter()
-  return calculateVatReturn(supabase, orgId, year, quarter)
+  const { year, month } = currentMonth()
+  return calculateVatReturn(supabase, orgId, year, month)
 }
+
+/** @deprecated Use getCurrentMonthVat instead */
+export const getCurrentQuarterVat = getCurrentMonthVat
 
 // ─── getVatTimeline ─────────────────────────────────────────────────────────
 
 export async function getVatTimeline(
   supabase: SupabaseClient,
   orgId: string,
-  periods: number = 4,
+  periods: number = 12,
 ): Promise<VatReturn[]> {
   // Try to read from the table first
-  const { data: cached } = await supabase
+  const { data: cached } = await (supabase as any)
     .from("vat_returns")
     .select("*")
     .eq("organization_id", orgId)
     .order("period_year", { ascending: false })
-    .order("period_quarter", { ascending: false })
+    .order("period_month", { ascending: false })
     .limit(periods)
 
   if (cached && cached.length >= periods) {
     return cached as unknown as VatReturn[]
   }
 
-  // Otherwise compute each quarter on the fly
+  // Otherwise compute each month on the fly
   const results: VatReturn[] = []
-  let { year, quarter } = currentQuarter()
+  let { year, month } = currentMonth()
 
   for (let i = 0; i < periods; i++) {
-    const vatReturn = await calculateVatReturn(supabase, orgId, year, quarter)
+    const vatReturn = await calculateVatReturn(supabase, orgId, year, month)
     results.push(vatReturn)
 
-    // Move to previous quarter
-    quarter -= 1
-    if (quarter < 1) {
-      quarter = 4
+    // Move to previous month
+    month -= 1
+    if (month < 1) {
+      month = 12
       year -= 1
     }
   }

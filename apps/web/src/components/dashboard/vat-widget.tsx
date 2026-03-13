@@ -99,23 +99,23 @@ export function VatWidget({ current, timeline }: VatWidgetProps) {
           </TableHeader>
           <TableBody>
             <TableRow>
-              <TableCell className="font-medium">20%</TableCell>
-              <TableCell className="text-right tabular-nums">{formatEur(current.vat_output_20)}</TableCell>
-              <TableCell className="text-right tabular-nums">{formatEur(current.vat_input_20)}</TableCell>
+              <TableCell className="font-medium">23%</TableCell>
+              <TableCell className="text-right tabular-nums">{formatEur(current.vat_output_23)}</TableCell>
+              <TableCell className="text-right tabular-nums">{formatEur(current.vat_input_23)}</TableCell>
               <TableCell className={`text-right font-medium tabular-nums ${
-                current.vat_output_20 - current.vat_input_20 > 0 ? "text-red-600" : "text-green-600"
+                current.vat_output_23 - current.vat_input_23 > 0 ? "text-red-600" : "text-green-600"
               }`}>
-                {formatEur(current.vat_output_20 - current.vat_input_20)}
+                {formatEur(current.vat_output_23 - current.vat_input_23)}
               </TableCell>
             </TableRow>
             <TableRow>
-              <TableCell className="font-medium">10%</TableCell>
-              <TableCell className="text-right tabular-nums">{formatEur(current.vat_output_10)}</TableCell>
-              <TableCell className="text-right tabular-nums">{formatEur(current.vat_input_10)}</TableCell>
+              <TableCell className="font-medium">19%</TableCell>
+              <TableCell className="text-right tabular-nums">{formatEur(current.vat_output_19)}</TableCell>
+              <TableCell className="text-right tabular-nums">{formatEur(current.vat_input_19)}</TableCell>
               <TableCell className={`text-right font-medium tabular-nums ${
-                current.vat_output_10 - current.vat_input_10 > 0 ? "text-red-600" : "text-green-600"
+                current.vat_output_19 - current.vat_input_19 > 0 ? "text-red-600" : "text-green-600"
               }`}>
-                {formatEur(current.vat_output_10 - current.vat_input_10)}
+                {formatEur(current.vat_output_19 - current.vat_input_19)}
               </TableCell>
             </TableRow>
             <TableRow>
