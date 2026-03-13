@@ -5,6 +5,7 @@ import { getActiveOrgId } from "@/lib/data/org"
 import { generateKvDphXml, type KvDphInvoice } from "@/lib/services/xml/kv-dph"
 import { generateDpDphXml } from "@/lib/services/xml/dp-dph"
 import { generateDpTypeBXml } from "@/lib/services/xml/dp-type-b"
+import { generateUblInvoiceXml } from "@/lib/services/xml/peppol-ubl"
 import { SLOVAK_TAX_CONFIG_2026 } from "@vexera/utils"
 
 // ─── KV DPH Export ────────────────────────────────────────────────────────────
@@ -269,4 +270,61 @@ export async function exportIncomeTaxAction(year: number) {
   })
 
   return { xml, filename: `DP_FO_B_${year}.xml` }
+}
+
+// ─── Peppol UBL 2.1 Export ──────────────────────────────────────────────────
+
+export async function exportPeppolUblAction(invoiceId: string) {
+  const [supabase, orgId] = await Promise.all([createClient(), getActiveOrgId()])
+  if (!orgId) return { error: "No active organization" }
+
+  // 1. Fetch invoice with items
+  const { data: invoice, error: invError } = await (supabase as any)
+    .from("invoices")
+    .select("*, invoice_items(*)")
+    .eq("id", invoiceId)
+    .eq("organization_id", orgId)
+    .single()
+
+  if (invError || !invoice) return { error: invError?.message ?? "Invoice not found" }
+
+  // 2. Map to UblInvoiceInput and generate XML
+  const items = ((invoice.invoice_items ?? []) as any[]).map((item: any) => ({
+    description: item.description ?? "",
+    quantity: Number(item.quantity ?? 1),
+    unit: item.unit ?? "C62",
+    unit_price: Number(item.unit_price ?? 0),
+    vat_rate: Number(item.vat_rate ?? 0),
+    vat_amount: Number(item.vat_amount ?? 0),
+    total_price: Number(item.total ?? 0),
+  }))
+
+  const xml = generateUblInvoiceXml({
+    invoice: {
+      invoice_number: invoice.invoice_number ?? "",
+      issue_date: invoice.issue_date ?? "",
+      due_date: invoice.due_date ?? "",
+      notes: invoice.notes ?? undefined,
+      total_amount: Number(invoice.total ?? 0),
+      vat_amount: Number(invoice.vat_amount ?? 0),
+      supplier_name: invoice.supplier_name ?? "",
+      supplier_ico: invoice.supplier_ico ?? undefined,
+      supplier_ic_dph: invoice.supplier_ic_dph ?? undefined,
+      supplier_street: invoice.supplier_address ?? undefined,
+      supplier_city: undefined,
+      supplier_zip: undefined,
+      customer_name: invoice.customer_name ?? "",
+      customer_ico: invoice.customer_ico ?? undefined,
+      customer_ic_dph: invoice.customer_ic_dph ?? undefined,
+      customer_street: invoice.customer_address ?? undefined,
+      customer_city: undefined,
+      customer_zip: undefined,
+      bank_iban: invoice.bank_iban ?? invoice.supplier_iban ?? undefined,
+      variable_symbol: invoice.variable_symbol ?? undefined,
+      items,
+    },
+  })
+
+  const invoiceNumber = (invoice.invoice_number ?? "invoice").replace(/[^a-zA-Z0-9_-]/g, "_")
+  return { xml, filename: `UBL_${invoiceNumber}.xml` }
 }

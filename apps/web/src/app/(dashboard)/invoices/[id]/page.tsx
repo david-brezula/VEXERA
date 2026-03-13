@@ -15,6 +15,7 @@ import { getInvoice } from "@/lib/data/invoices"
 import { getDocuments } from "@/lib/data/documents"
 import { InvoiceStatusBadge } from "@/components/invoices/invoice-status-badge"
 import { InvoiceActionsBar } from "@/components/invoices/invoice-actions"
+import { ExportUblButton } from "@/components/invoices/export-ubl-button"
 import { SendEmailDialog } from "@/components/invoices/send-email-dialog"
 import { InvoiceDocumentsTab } from "@/components/invoices/invoice-documents-tab"
 import { Button } from "@/components/ui/button"
@@ -69,6 +70,7 @@ export default async function InvoiceDetailPage({
               PDF
             </a>
           </Button>
+          <ExportUblButton invoiceId={id} />
           {(invoice.status === "sent" || invoice.status === "paid") && (
             <SendEmailDialog invoiceId={id} invoiceNumber={invoice.invoice_number} />
           )}
