@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select"
 import { toast } from "sonner"
 import { createInvitationAction } from "@/lib/actions/members"
-import { PlusIcon, TrashIcon, UserPlusIcon } from "lucide-react"
+import { ChevronLeftIcon, PlusIcon, TrashIcon, UserPlusIcon } from "lucide-react"
 
 interface TeamMember {
   email: string
@@ -144,12 +144,23 @@ export function TeamStep({ onNext, onBack }: TeamStepProps) {
 
       <div className="flex justify-between pt-4">
         <Button variant="outline" onClick={onBack}>
-          Preskocit
+          <ChevronLeftIcon className="h-4 w-4 mr-1" />
+          Spat
         </Button>
-        <Button onClick={handleSubmit} disabled={isPending}>
-          <UserPlusIcon className="h-4 w-4 mr-2" />
-          {isPending ? "Odosielam..." : "Odoslat pozvanky a pokracovat"}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleSkip}
+            className="text-muted-foreground"
+          >
+            Preskocit
+          </Button>
+          <Button onClick={handleSubmit} disabled={isPending}>
+            <UserPlusIcon className="h-4 w-4 mr-2" />
+            {isPending ? "Odosielam..." : "Odoslat pozvanky"}
+          </Button>
+        </div>
       </div>
     </div>
   )
