@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
@@ -30,6 +30,8 @@ import {
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirect = searchParams.get("redirect")
   const [isLoading, setIsLoading] = useState(false)
   const supabase = createClient()
 
@@ -54,7 +56,7 @@ export default function LoginPage() {
         return
       }
 
-      router.push("/dashboard")
+      router.push(redirect || "/dashboard")
       router.refresh()
     } catch {
       toast.error("An unexpected error occurred")

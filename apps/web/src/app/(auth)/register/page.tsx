@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
@@ -30,6 +30,9 @@ import {
 
 export default function RegisterPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirect = searchParams.get("redirect")
+  const emailParam = searchParams.get("email")
   const [isLoading, setIsLoading] = useState(false)
   const supabase = createClient()
 
@@ -37,7 +40,7 @@ export default function RegisterPage() {
     resolver: zodResolver(registerSchema),
     defaultValues: {
       fullName: "",
-      email: "",
+      email: emailParam || "",
       password: "",
       confirmPassword: "",
     },
@@ -62,7 +65,7 @@ export default function RegisterPage() {
       }
 
       toast.success("Ucet vytvoreny!")
-      router.push("/onboarding")
+      router.push(redirect || "/onboarding")
     } catch {
       toast.error("An unexpected error occurred")
     } finally {
