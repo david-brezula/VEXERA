@@ -13,6 +13,8 @@ import {
   Download,
   Inbox,
   Users,
+  Receipt,
+  Calculator,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -42,6 +44,13 @@ const navGroups = [
     items: [
       { href: "/rules", label: "Rules", icon: Zap },
       { href: "/export", label: "Export", icon: Download },
+    ],
+  },
+  {
+    label: "Tax",
+    items: [
+      { href: "/tax/vat", label: "VAT Returns", icon: Receipt },
+      { href: "/tax/income", label: "Income Tax", icon: Calculator },
     ],
   },
   {
