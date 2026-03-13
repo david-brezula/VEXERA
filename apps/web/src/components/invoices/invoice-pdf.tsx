@@ -1,5 +1,6 @@
 import {
   Document,
+  Image,
   Page,
   Text,
   View,
@@ -221,9 +222,37 @@ const s = StyleSheet.create({
     fontSize: 9,
     color: "#6b7280",
   },
+  // Logo
+  logo: {
+    width: 60,
+    height: 60,
+    objectFit: "contain" as const,
+  },
+  headerLeft: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 10,
+  },
+  // QR payment
+  qrSection: {
+    marginTop: 20,
+    alignItems: "center" as const,
+  },
+  qrLabel: {
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+    textTransform: "uppercase" as const,
+    letterSpacing: 1,
+    color: "#6b7280",
+    marginBottom: 6,
+  },
+  qrImage: {
+    width: 100,
+    height: 100,
+  },
 })
 
-export function InvoicePdfDocument({ invoice }: { invoice: InvoiceDetail }) {
+export function InvoicePdfDocument({ invoice, qrDataUrl }: { invoice: InvoiceDetail; qrDataUrl?: string }) {
   const items = invoice.invoice_items ?? []
 
   // VAT breakdown
@@ -242,9 +271,14 @@ export function InvoicePdfDocument({ invoice }: { invoice: InvoiceDetail }) {
       <Page size="A4" style={s.page}>
         {/* Header */}
         <View style={s.header}>
-          <View>
-            <Text style={s.title}>INVOICE</Text>
-            <Text style={s.invoiceNumber}>{invoice.invoice_number}</Text>
+          <View style={s.headerLeft}>
+            {invoice.organization?.logo_url && (
+              <Image src={invoice.organization.logo_url} style={s.logo} />
+            )}
+            <View>
+              <Text style={s.title}>INVOICE</Text>
+              <Text style={s.invoiceNumber}>{invoice.invoice_number}</Text>
+            </View>
           </View>
           <View style={s.headerRight}>
             <Text>
@@ -366,6 +400,14 @@ export function InvoicePdfDocument({ invoice }: { invoice: InvoiceDetail }) {
           <View style={s.notesContainer}>
             <Text style={s.notesLabel}>Note</Text>
             <Text style={s.notesText}>{invoice.notes}</Text>
+          </View>
+        )}
+
+        {/* PAY by square QR code */}
+        {qrDataUrl && (
+          <View style={s.qrSection}>
+            <Text style={s.qrLabel}>PAY by square</Text>
+            <Image src={qrDataUrl} style={s.qrImage} />
           </View>
         )}
 

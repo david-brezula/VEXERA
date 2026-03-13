@@ -10,8 +10,10 @@ import { getInvoice } from "@/lib/data/invoices"
 import { calculateVatAmount, calculateGrossAmount } from "@vexera/utils"
 import type { InvoiceFormValues } from "@/lib/validations/invoice.schema"
 import type { InvoiceStatus, InvoiceType } from "@vexera/types"
+import QRCode from "qrcode"
 import { InvoicePdfDocument } from "@/components/invoices/invoice-pdf"
 import { createTracking, getTrackingPixelHtml } from "@/lib/services/email-tracking.service"
+import { encodePayBySquare } from "@/lib/pay-by-square"
 import { postInvoiceToLedger } from "./invoice-posting"
 
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -547,19 +549,38 @@ export async function sendInvoiceEmailAction(
     const invoice = await getInvoice(invoiceId)
     if (!invoice) return { error: "Invoice not found" }
 
-    // 2. Generate PDF buffer
-    const element = createElement(InvoicePdfDocument, { invoice })
+    // 2. Pre-compute PAY by square QR code if IBAN is available
+    let qrDataUrl: string | undefined
+    const iban = invoice.bank_iban || invoice.supplier_iban
+    if (iban) {
+      const payData = encodePayBySquare({
+        amount: Number(invoice.total),
+        currencyCode: invoice.currency || "EUR",
+        iban,
+        variableSymbol: invoice.variable_symbol ?? undefined,
+        constantSymbol: invoice.constant_symbol ?? undefined,
+        specificSymbol: invoice.specific_symbol ?? undefined,
+        beneficiaryName: invoice.supplier_name ?? undefined,
+        dueDate: invoice.due_date
+          ? invoice.due_date.replace(/-/g, "")
+          : undefined,
+      })
+      qrDataUrl = await QRCode.toDataURL(payData, { width: 150, margin: 1 })
+    }
+
+    // 3. Generate PDF buffer
+    const element = createElement(InvoicePdfDocument, { invoice, qrDataUrl })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pdfBuffer = await renderToBuffer(element as any)
 
-    // 3. Create email tracking record
+    // 4. Create email tracking record
     const subject = `Invoice ${invoice.invoice_number}`
     const tracking = await createTracking(supabase, orgId, invoiceId, recipientEmail, subject)
     const trackingPixelHtml = tracking
       ? getTrackingPixelHtml(tracking.trackingPixelId)
       : ""
 
-    // 4. Build HTML email body with inline invoice summary
+    // 5. Build HTML email body with inline invoice summary
     const html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
   <h2>Invoice ${invoice.invoice_number}</h2>
   <table>
@@ -575,7 +596,7 @@ export async function sendInvoiceEmailAction(
   ${trackingPixelHtml}
 </div>`
 
-    // 5. Send via Resend with PDF attachment
+    // 6. Send via Resend with PDF attachment
     const { data: emailResult, error: emailError } = await resend.emails.send({
       from: "VEXERA <noreply@vexera.sk>",
       to: recipientEmail,
@@ -594,7 +615,7 @@ export async function sendInvoiceEmailAction(
       return { error: `Failed to send email: ${emailError.message}` }
     }
 
-    // 6. Update tracking record with Resend email ID
+    // 7. Update tracking record with Resend email ID
     if (tracking && emailResult?.id) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase.from("email_tracking" as any) as any)
@@ -602,7 +623,7 @@ export async function sendInvoiceEmailAction(
         .eq("id", tracking.trackingId)
     }
 
-    // 7. Create audit log entry
+    // 8. Create audit log entry
     await supabase.from("audit_logs").insert({
       organization_id: orgId,
       user_id: user.id,
