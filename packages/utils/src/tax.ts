@@ -33,6 +33,22 @@ export const SLOVAK_TAX_CONFIG_2025: TaxConfig = {
   assessmentMonths: 12,
 }
 
+export const SLOVAK_TAX_CONFIG_2026: TaxConfig = {
+  flatExpenseRate: 0.60,
+  flatExpenseCap: 20000,
+  nezdanitelnaČiastka: 5188.96,
+  standardTaxRate: 0.15,
+  higherTaxRate: 0.19,
+  topTaxRate: 0.25,
+  incomeThreshold1: 49790,
+  incomeThreshold2: 176304,
+  socialRate: 0.3315,
+  healthRate: 0.14,
+  minSocialMonthly: 216.13,
+  minHealthMonthly: 107.25,
+  assessmentMonths: 12,
+}
+
 export interface FreelancerTaxResult {
   expenseDeduction: number
   insuranceDeduction: number

@@ -2,11 +2,11 @@ import { createClient } from "@/lib/supabase/server"
 
 export type VatSummary = {
   period_label: string       // e.g. "Q1 2026"
-  vat_output_20: number
-  vat_output_10: number
+  vat_output_23: number
+  vat_output_19: number
   vat_output_5: number
-  vat_input_20: number
-  vat_input_10: number
+  vat_input_23: number
+  vat_input_19: number
   vat_input_5: number
   total_output_vat: number
   total_input_vat: number
@@ -77,8 +77,8 @@ export async function getCurrentQuarterVat(orgId: string): Promise<VatSummary> {
 
   // Initialize VAT buckets
   const vat = {
-    output_20: 0, output_10: 0, output_5: 0,
-    input_20: 0, input_10: 0, input_5: 0,
+    output_23: 0, output_19: 0, output_5: 0,
+    input_23: 0, input_19: 0, input_5: 0,
     base_output: 0, base_input: 0,
   }
 
@@ -86,20 +86,20 @@ export async function getCurrentQuarterVat(orgId: string): Promise<VatSummary> {
   for (const doc of docRows) {
     const vatAmt = Number(doc.vat_amount) || 0
     const totalAmt = Number(doc.total_amount) || 0
-    const rate = Number(doc.vat_rate) || 20
+    const rate = Number(doc.vat_rate) || 23
 
     const isOutput = doc.document_type === "invoice_issued" || doc.document_type === "tax_document"
     const isInput = doc.document_type === "invoice_received" || doc.document_type === "receipt"
 
     if (isOutput) {
       vat.base_output += totalAmt - vatAmt
-      if (rate >= 18) vat.output_20 += vatAmt
-      else if (rate >= 8) vat.output_10 += vatAmt
+      if (rate >= 20) vat.output_23 += vatAmt
+      else if (rate >= 10) vat.output_19 += vatAmt
       else vat.output_5 += vatAmt
     } else if (isInput) {
       vat.base_input += totalAmt - vatAmt
-      if (rate >= 18) vat.input_20 += vatAmt
-      else if (rate >= 8) vat.input_10 += vatAmt
+      if (rate >= 20) vat.input_23 += vatAmt
+      else if (rate >= 10) vat.input_19 += vatAmt
       else vat.input_5 += vatAmt
     }
   }
@@ -119,30 +119,30 @@ export async function getCurrentQuarterVat(orgId: string): Promise<VatSummary> {
   // Process invoice items with actual per-line VAT rates for bucketing
   for (const item of itemRows) {
     const vatAmt = Number(item.vat_amount) || 0
-    const rate = Number(item.vat_rate) || 20
+    const rate = Number(item.vat_rate) || 23
     const invoiceType = invoiceTypeMap.get(item.invoice_id)
 
     if (invoiceType === "issued") {
-      if (rate >= 18) vat.output_20 += vatAmt
-      else if (rate >= 8) vat.output_10 += vatAmt
+      if (rate >= 20) vat.output_23 += vatAmt
+      else if (rate >= 10) vat.output_19 += vatAmt
       else vat.output_5 += vatAmt
     } else {
-      if (rate >= 18) vat.input_20 += vatAmt
-      else if (rate >= 8) vat.input_10 += vatAmt
+      if (rate >= 20) vat.input_23 += vatAmt
+      else if (rate >= 10) vat.input_19 += vatAmt
       else vat.input_5 += vatAmt
     }
   }
 
-  const totalOutput = vat.output_20 + vat.output_10 + vat.output_5
-  const totalInput = vat.input_20 + vat.input_10 + vat.input_5
+  const totalOutput = vat.output_23 + vat.output_19 + vat.output_5
+  const totalInput = vat.input_23 + vat.input_19 + vat.input_5
 
   return {
     period_label: `Q${quarter} ${year}`,
-    vat_output_20: round(vat.output_20),
-    vat_output_10: round(vat.output_10),
+    vat_output_23: round(vat.output_23),
+    vat_output_19: round(vat.output_19),
     vat_output_5: round(vat.output_5),
-    vat_input_20: round(vat.input_20),
-    vat_input_10: round(vat.input_10),
+    vat_input_23: round(vat.input_23),
+    vat_input_19: round(vat.input_19),
     vat_input_5: round(vat.input_5),
     total_output_vat: round(totalOutput),
     total_input_vat: round(totalInput),
@@ -170,7 +170,7 @@ export async function getVatTimeline(orgId: string, periods = 4): Promise<VatTim
       .select("total_output_vat, total_input_vat, vat_liability")
       .eq("organization_id", orgId)
       .eq("period_year", year)
-      .eq("period_quarter", quarter)
+      .eq("period_month", (quarter - 1) * 3 + 1)
       .single()
 
     if (data) {

@@ -15,6 +15,7 @@ export {
 
 export {
   SLOVAK_TAX_CONFIG_2025,
+  SLOVAK_TAX_CONFIG_2026,
   calculateFlatExpenses,
   calculateFreelancerTax,
   type TaxConfig,

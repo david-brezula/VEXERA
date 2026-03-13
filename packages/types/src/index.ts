@@ -89,9 +89,12 @@ export interface AccountantPermissions {
   upload_documents: boolean
 }
 
-// Slovak VAT rates
-export const VAT_RATES = [20, 10, 5, 0] as const
+// Slovak VAT rates (2025+: 23%, 19%, 5%, 0%)
+export const VAT_RATES = [23, 19, 5, 0] as const
 export type VatRate = (typeof VAT_RATES)[number]
+
+/** @deprecated Historical rates kept for backward compat with stored data */
+export type VatRateLegacy = 20 | 10 | VatRate
 
 // Bank
 export type BankTransactionMatchStatus =
@@ -350,12 +353,12 @@ export interface VatReturn {
   id: string
   organization_id: string
   period_year: number
-  period_quarter: number
-  vat_output_20: number
-  vat_output_10: number
+  period_month: number
+  vat_output_23: number
+  vat_output_19: number
   vat_output_5: number
-  vat_input_20: number
-  vat_input_10: number
+  vat_input_23: number
+  vat_input_19: number
   vat_input_5: number
   total_output_vat: number
   total_input_vat: number
