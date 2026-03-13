@@ -15,9 +15,12 @@ import { InvoicePdfDocument } from "@/components/invoices/invoice-pdf"
 import { createTracking, getTrackingPixelHtml } from "@/lib/services/email-tracking.service"
 import { encodePayBySquare } from "@/lib/pay-by-square"
 import { postInvoiceToLedger } from "./invoice-posting"
-import { getInvoiceTemplateSettingsAction, type InvoiceTemplateSettings } from "./invoice-template"
+import { getInvoiceTemplateSettingsAction } from "./invoice-template"
+import type { InvoiceTemplateSettings } from "@/lib/types/invoice-template"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY)
+}
 
 // ─── Private helpers ──────────────────────────────────────────────────────────
 
@@ -605,7 +608,7 @@ export async function sendInvoiceEmailAction(
 </div>`
 
     // 6. Send via Resend with PDF attachment
-    const { data: emailResult, error: emailError } = await resend.emails.send({
+    const { data: emailResult, error: emailError } = await getResend().emails.send({
       from: "VEXERA <noreply@vexera.sk>",
       to: recipientEmail,
       subject,

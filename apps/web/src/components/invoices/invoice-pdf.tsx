@@ -7,7 +7,7 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer"
 import type { InvoiceDetail } from "@/lib/data/invoices"
-import type { InvoiceTemplateSettings } from "@/lib/actions/invoice-template"
+import type { InvoiceTemplateSettings } from "@/lib/types/invoice-template"
 
 function fmtEur(n: number): string {
   return new Intl.NumberFormat("sk-SK", { style: "currency", currency: "EUR" }).format(n)

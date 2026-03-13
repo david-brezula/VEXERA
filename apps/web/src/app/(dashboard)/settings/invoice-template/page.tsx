@@ -5,9 +5,8 @@ import { toast } from "sonner"
 import {
   getInvoiceTemplateSettingsAction,
   updateInvoiceTemplateSettingsAction,
-  DEFAULT_TEMPLATE_SETTINGS,
-  type InvoiceTemplateSettings,
 } from "@/lib/actions/invoice-template"
+import { DEFAULT_TEMPLATE_SETTINGS, type InvoiceTemplateSettings } from "@/lib/types/invoice-template"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"

@@ -18,9 +18,11 @@ import { createTracking, getTrackingPixelHtml } from "@/lib/services/email-track
 import { encodePayBySquare } from "@/lib/pay-by-square"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { InvoiceDetail } from "@/lib/data/invoices"
-import { DEFAULT_TEMPLATE_SETTINGS, type InvoiceTemplateSettings } from "@/lib/actions/invoice-template"
+import { DEFAULT_TEMPLATE_SETTINGS, type InvoiceTemplateSettings } from "@/lib/types/invoice-template"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY)
+}
 
 /**
  * Fetch a full invoice (with items + org logo) using a system supabase client.
@@ -122,7 +124,7 @@ export async function sendInvoiceEmailSystem(
 </div>`
 
     // 6. Send via Resend with PDF attachment
-    const { data: emailResult, error: emailError } = await resend.emails.send({
+    const { data: emailResult, error: emailError } = await getResend().emails.send({
       from: "VEXERA <noreply@vexera.sk>",
       to: recipientEmail,
       subject,

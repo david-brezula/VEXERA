@@ -5,7 +5,8 @@ import QRCode from "qrcode"
 import { getInvoice } from "@/lib/data/invoices"
 import { InvoicePdfDocument } from "@/components/invoices/invoice-pdf"
 import { encodePayBySquare } from "@/lib/pay-by-square"
-import { getInvoiceTemplateSettingsAction, type InvoiceTemplateSettings } from "@/lib/actions/invoice-template"
+import { getInvoiceTemplateSettingsAction } from "@/lib/actions/invoice-template"
+import type { InvoiceTemplateSettings } from "@/lib/types/invoice-template"
 
 export async function GET(
   _request: Request,
