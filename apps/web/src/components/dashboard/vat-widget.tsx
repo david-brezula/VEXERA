@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+import { ArrowRight } from "lucide-react"
 import { formatEur } from "@vexera/utils"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -172,6 +174,17 @@ export function VatWidget({ current, timeline }: VatWidgetProps) {
           </Table>
         </Card>
       )}
+
+      {/* Link to VAT Returns */}
+      <div className="flex justify-end">
+        <Link
+          href="/tax/vat"
+          className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+        >
+          View VAT Returns
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+      </div>
     </div>
   )
 }
