@@ -697,21 +697,21 @@ export function DocumentDetailClient({ document, comments, auditLogs }: Props) {
                       value={document.vat_rate != null ? `${document.vat_rate}%` : "—"}
                     />
                     <MetadataField label="Category" value={document.category ?? "—"} />
-                    {!document.category && document.ocr_status === "done" && (
-                      <div className="col-span-2">
-                        <CategorySuggestions
-                          documentId={document.id}
-                          supplierName={document.supplier_name}
-                          totalAmount={document.total_amount}
-                          description={document.name}
-                          onAccepted={() => router.refresh()}
-                        />
-                      </div>
-                    )}
                   </div>
                 )}
               </CardContent>
             </Card>
+          )}
+
+          {/* Category suggestions — shown when OCR is done but no category assigned */}
+          {!document.category && document.ocr_status === "done" && (
+            <CategorySuggestions
+              documentId={document.id}
+              supplierName={document.supplier_name}
+              totalAmount={document.total_amount}
+              description={document.name}
+              onAccepted={() => router.refresh()}
+            />
           )}
 
           {/* Danger zone */}
