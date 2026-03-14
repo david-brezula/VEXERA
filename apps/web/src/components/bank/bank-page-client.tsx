@@ -13,9 +13,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { BankTransactionsTable } from "@/components/bank/bank-transactions-table"
 import { BankImportWizard } from "@/components/bank/bank-import-wizard"
 import { ReconcileSuggestionsPanel } from "@/components/bank/reconcile-suggestions-panel"
+import { RecurringPatternsPanel } from "@/components/bank/recurring-patterns-panel"
 import { useBankAccounts, useRunReconciliation } from "@/hooks/use-bank"
 import type { ReconcileResult } from "@/hooks/use-bank"
 
@@ -45,6 +47,7 @@ export function BankPageClient({ initialTab }: Props) {
   const [selectedAccountId, setSelectedAccountId] = useState<string>("all")
   const [selectedMatchStatus, setSelectedMatchStatus] = useState<string>("all")
   const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null)
+  const [patternCount, setPatternCount] = useState(0)
 
   const { data: accounts = [], isLoading: accountsLoading } = useBankAccounts()
   const runReconciliation = useRunReconciliation()
@@ -71,6 +74,14 @@ export function BankPageClient({ initialTab }: Props) {
         <TabsTrigger value="transactions">Transactions</TabsTrigger>
         <TabsTrigger value="import">Import</TabsTrigger>
         <TabsTrigger value="reconcile">Reconcile</TabsTrigger>
+        <TabsTrigger value="patterns" className="gap-1.5">
+          Patterns
+          {patternCount > 0 && (
+            <Badge variant="secondary" className="ml-1 px-1.5 py-0.5 text-xs">
+              {patternCount}
+            </Badge>
+          )}
+        </TabsTrigger>
       </TabsList>
 
       {/* ── Transactions Tab ─────────────────────────────────────────────── */}
@@ -145,6 +156,11 @@ export function BankPageClient({ initialTab }: Props) {
         </div>
 
         <ReconcileSuggestionsPanel result={reconcileResult} />
+      </TabsContent>
+
+      {/* ── Patterns Tab ───────────────────────────────────────────────── */}
+      <TabsContent value="patterns" className="mt-4">
+        <RecurringPatternsPanel onCountChange={setPatternCount} />
       </TabsContent>
     </Tabs>
   )

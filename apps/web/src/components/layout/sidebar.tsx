@@ -21,10 +21,18 @@ import {
 import { cn } from "@/lib/utils"
 import { OrgSwitcher } from "./org-switcher"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { BankPatternBadge } from "./bank-pattern-badge"
 
 // ─── Nav structure ────────────────────────────────────────────────────────────
 
-const navGroups = [
+interface NavItemDef {
+  href: string
+  label: string
+  icon: React.ElementType
+  badge?: React.ReactNode
+}
+
+const navGroups: { label: string; items: NavItemDef[] }[] = [
   {
     label: "Main",
     items: [
@@ -37,7 +45,7 @@ const navGroups = [
     items: [
       { href: "/invoices", label: "Invoices", icon: FileText },
       { href: "/documents", label: "Documents", icon: FolderOpen },
-      { href: "/bank", label: "Bank", icon: Landmark },
+      { href: "/bank", label: "Bank", icon: Landmark, badge: <BankPatternBadge /> },
     ],
   },
   {
@@ -105,11 +113,13 @@ function NavItem({
   label,
   icon: Icon,
   isActive,
+  badge,
 }: {
   href: string
   label: string
   icon: React.ElementType
   isActive: boolean
+  badge?: React.ReactNode
 }) {
   return (
     <Link
@@ -123,6 +133,7 @@ function NavItem({
     >
       <Icon className="h-4 w-4 shrink-0" />
       {label}
+      {badge && <span className="ml-auto">{badge}</span>}
     </Link>
   )
 }
@@ -164,6 +175,7 @@ export function Sidebar() {
                     label={item.label}
                     icon={item.icon}
                     isActive={isActive(item.href)}
+                    badge={item.badge}
                   />
                 ))}
               </div>
