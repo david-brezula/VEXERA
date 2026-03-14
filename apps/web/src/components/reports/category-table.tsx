@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { Fragment, useState, useTransition } from "react"
 import { ArrowUp, ArrowDown, ChevronRight, ChevronDown } from "lucide-react"
 
 import {
@@ -90,9 +90,8 @@ export function CategoryTable({ rows, total, currency = "EUR", onCategoryClick, 
             : undefined
 
           return (
-            <>
+            <Fragment key={row.category}>
               <TableRow
-                key={row.category}
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => handleRowClick(row)}
               >
@@ -181,7 +180,7 @@ export function CategoryTable({ rows, total, currency = "EUR", onCategoryClick, 
                   </TableCell>
                 </TableRow>
               )}
-            </>
+            </Fragment>
           )
         })}
         <TableRow className="font-bold border-t-2">
