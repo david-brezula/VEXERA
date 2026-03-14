@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { ArrowLeft } from "lucide-react"
+import { Fragment, useState, useMemo, useCallback } from "react"
+import { ArrowLeft, ArrowUp, ArrowDown, ChevronRight, ChevronDown } from "lucide-react"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 
@@ -9,6 +9,8 @@ import { useOrganization } from "@/providers/organization-provider"
 import { queryKeys } from "@/lib/query-keys"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 import {
   Table,
   TableBody,
@@ -18,6 +20,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { PeriodSelector, periodOptions } from "./period-selector"
+import { PLBarChart } from "@/components/charts/pl-bar-chart"
+import { formatEur } from "@vexera/utils"
 import type { PLReport } from "@/lib/services/reports/report.types"
 
 interface PLPageClientProps {
@@ -37,7 +41,21 @@ export function PLPageClient({ tagType }: PLPageClientProps) {
   const { activeOrg } = useOrganization()
   const orgId = activeOrg?.id ?? ""
   const [periodKey, setPeriodKey] = useState("current_quarter")
+  const [isComparing, setIsComparing] = useState(false)
+  const [expandedRow, setExpandedRow] = useState<string | null>(null)
   const period = periodOptions.find((p) => p.value === periodKey) ?? periodOptions[2]
+
+  // Calculate previous period by shifting from/to back by the period length
+  const comparisonPeriod = useMemo(() => {
+    const fromDate = new Date(period.from)
+    const toDate = new Date(period.to)
+    const durationMs = toDate.getTime() - fromDate.getTime() + 86_400_000 // inclusive
+    const prevTo = new Date(fromDate.getTime() - 86_400_000) // day before current from
+    const prevFrom = new Date(prevTo.getTime() - durationMs + 86_400_000)
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    return { from: fmt(prevFrom), to: fmt(prevTo) }
+  }, [period.from, period.to])
 
   const queryKey = tagType === "client"
     ? queryKeys.reports.clientPL(orgId, { from: period.from, to: period.to })
@@ -60,9 +78,59 @@ export function PLPageClient({ tagType }: PLPageClientProps) {
     enabled: !!orgId,
   })
 
+  const comparisonQueryKey = tagType === "client"
+    ? queryKeys.reports.clientPL(orgId, { from: comparisonPeriod.from, to: comparisonPeriod.to })
+    : queryKeys.reports.projectPL(orgId, { from: comparisonPeriod.from, to: comparisonPeriod.to })
+
+  const { data: comparisonReports = [] } = useQuery({
+    queryKey: comparisonQueryKey,
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        organization_id: orgId,
+        from: comparisonPeriod.from,
+        to: comparisonPeriod.to,
+        tag_type: tagType,
+      })
+      const result = await fetchJson<{ data: PLReport[] }>(
+        `/api/reports/client-pl?${params}`
+      )
+      return result.data
+    },
+    enabled: !!orgId && isComparing,
+  })
+
   const totalRevenue = reports.reduce((s, r) => s + r.totalRevenue, 0)
   const totalExpenses = reports.reduce((s, r) => s + r.totalExpenses, 0)
   const totalProfit = totalRevenue - totalExpenses
+
+  const chartData = useMemo(
+    () =>
+      reports.map((r) => ({
+        name: r.entityName,
+        revenue: r.totalRevenue,
+        expenses: r.totalExpenses,
+      })),
+    [reports]
+  )
+
+  const comparisonChartData = useMemo(() => {
+    if (!isComparing || comparisonReports.length === 0) return undefined
+    return comparisonReports.map((r) => ({
+      name: r.entityName,
+      revenue: r.totalRevenue,
+      expenses: r.totalExpenses,
+    }))
+  }, [isComparing, comparisonReports])
+
+  const handleCompareToggle = useCallback((checked: boolean) => {
+    setIsComparing(checked)
+  }, [])
+
+  const handleRowClick = useCallback((entityTagId: string) => {
+    setExpandedRow((prev) => (prev === entityTagId ? null : entityTagId))
+  }, [])
+
+  const hasComparison = isComparing && comparisonReports.length > 0
 
   return (
     <>
@@ -71,6 +139,17 @@ export function PLPageClient({ tagType }: PLPageClientProps) {
           <ArrowLeft className="size-5" />
         </Link>
         <PeriodSelector value={periodKey} onValueChange={setPeriodKey} />
+
+        <div className="flex items-center gap-2 ml-auto">
+          <Switch
+            id="pl-compare-toggle"
+            checked={isComparing}
+            onCheckedChange={handleCompareToggle}
+          />
+          <Label htmlFor="pl-compare-toggle" className="text-sm cursor-pointer">
+            Porovnať s predchádzajúcim obdobím
+          </Label>
+        </div>
       </div>
 
       {!isLoading && reports.length === 0 && (
@@ -118,41 +197,209 @@ export function PLPageClient({ tagType }: PLPageClientProps) {
             </Card>
           </div>
 
+          {/* P&L Bar Chart */}
+          {chartData.length > 0 && (
+            <Card className="mt-4">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {tagType === "client" ? "Klienti" : "Projekty"} — Výnosy vs Náklady
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <PLBarChart data={chartData} comparisonData={comparisonChartData} />
+              </CardContent>
+            </Card>
+          )}
+
           {/* P&L Table */}
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[30px]" />
                 <TableHead>{tagType === "client" ? "Klient" : "Projekt"}</TableHead>
                 <TableHead className="text-right">Výnosy</TableHead>
                 <TableHead className="text-right">Náklady</TableHead>
                 <TableHead className="text-right">Zisk</TableHead>
                 <TableHead className="text-right">Marža</TableHead>
+                {hasComparison && <TableHead className="text-right">Predch. výnosy</TableHead>}
+                {hasComparison && <TableHead className="text-right">Predch. náklady</TableHead>}
+                {hasComparison && <TableHead className="text-right">Predch. zisk</TableHead>}
+                {hasComparison && <TableHead className="text-right">Zmena</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {reports.map((report) => (
-                <TableRow key={report.entityTagId}>
-                  <TableCell className="font-medium">{report.entityName}</TableCell>
-                  <TableCell className="text-right tabular-nums text-green-600">
-                    {report.totalRevenue.toLocaleString("sk-SK", { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-red-600">
-                    {report.totalExpenses.toLocaleString("sk-SK", { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className={`text-right tabular-nums font-medium ${report.netProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {report.netProfit.toLocaleString("sk-SK", { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Badge variant={report.margin >= 20 ? "secondary" : report.margin >= 0 ? "outline" : "destructive"}>
-                      {report.margin}%
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {reports.map((report) => {
+                const isExpanded = expandedRow === report.entityTagId
+                const compReport = hasComparison
+                  ? comparisonReports.find((c) => c.entityName === report.entityName)
+                  : undefined
+
+                return (
+                  <Fragment key={report.entityTagId}>
+                    <TableRow
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleRowClick(report.entityTagId)}
+                    >
+                      <TableCell className="pr-0">
+                        {isExpanded ? (
+                          <ChevronDown className="size-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="size-4 text-muted-foreground" />
+                        )}
+                      </TableCell>
+                      <TableCell className="font-medium">{report.entityName}</TableCell>
+                      <TableCell className="text-right tabular-nums text-green-600">
+                        {report.totalRevenue.toLocaleString("sk-SK", { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-red-600">
+                        {report.totalExpenses.toLocaleString("sk-SK", { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell className={`text-right tabular-nums font-medium ${report.netProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        {report.netProfit.toLocaleString("sk-SK", { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant={report.margin >= 20 ? "secondary" : report.margin >= 0 ? "outline" : "destructive"}>
+                          {report.margin}%
+                        </Badge>
+                      </TableCell>
+                      {hasComparison && (
+                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                          {compReport
+                            ? compReport.totalRevenue.toLocaleString("sk-SK", { minimumFractionDigits: 2 })
+                            : "—"}
+                        </TableCell>
+                      )}
+                      {hasComparison && (
+                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                          {compReport
+                            ? compReport.totalExpenses.toLocaleString("sk-SK", { minimumFractionDigits: 2 })
+                            : "—"}
+                        </TableCell>
+                      )}
+                      {hasComparison && (
+                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                          {compReport
+                            ? compReport.netProfit.toLocaleString("sk-SK", { minimumFractionDigits: 2 })
+                            : "—"}
+                        </TableCell>
+                      )}
+                      {hasComparison && (
+                        <TableCell className="text-right">
+                          <ChangeIndicator
+                            current={report.netProfit}
+                            previous={compReport?.netProfit}
+                          />
+                        </TableCell>
+                      )}
+                    </TableRow>
+
+                    {isExpanded && (
+                      <TableRow key={`${report.entityTagId}-drilldown`}>
+                        <TableCell colSpan={hasComparison ? 10 : 6} className="p-0">
+                          <div className="bg-muted/30 px-8 py-3">
+                            <div className="grid gap-4 md:grid-cols-2">
+                              {/* Revenue breakdown */}
+                              <div>
+                                <h4 className="text-sm font-medium mb-2 text-green-600">Výnosy</h4>
+                                {report.revenue.length === 0 ? (
+                                  <p className="text-sm text-muted-foreground">Žiadne výnosy.</p>
+                                ) : (
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Kategória</TableHead>
+                                        <TableHead className="text-right">Suma</TableHead>
+                                        <TableHead className="text-right">Počet</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {report.revenue.map((row) => (
+                                        <TableRow key={row.label} className="text-sm">
+                                          <TableCell>{row.label}</TableCell>
+                                          <TableCell className="text-right tabular-nums">
+                                            {formatEur(row.amount)}
+                                          </TableCell>
+                                          <TableCell className="text-right tabular-nums">
+                                            {row.transactionCount}
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                )}
+                              </div>
+
+                              {/* Expenses breakdown */}
+                              <div>
+                                <h4 className="text-sm font-medium mb-2 text-red-600">Náklady</h4>
+                                {report.expenses.length === 0 ? (
+                                  <p className="text-sm text-muted-foreground">Žiadne náklady.</p>
+                                ) : (
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Kategória</TableHead>
+                                        <TableHead className="text-right">Suma</TableHead>
+                                        <TableHead className="text-right">Počet</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {report.expenses.map((row) => (
+                                        <TableRow key={row.label} className="text-sm">
+                                          <TableCell>{row.label}</TableCell>
+                                          <TableCell className="text-right tabular-nums">
+                                            {formatEur(row.amount)}
+                                          </TableCell>
+                                          <TableCell className="text-right tabular-nums">
+                                            {row.transactionCount}
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                )
+              })}
             </TableBody>
           </Table>
         </>
       )}
     </>
+  )
+}
+
+function ChangeIndicator({ current, previous }: { current: number; previous?: number }) {
+  if (previous == null || previous === 0) {
+    if (current === 0) return <span className="text-xs text-muted-foreground">—</span>
+    return (
+      <span className="inline-flex items-center gap-0.5 text-xs font-medium text-green-600">
+        <ArrowUp className="size-3" /> nové
+      </span>
+    )
+  }
+
+  const delta = ((current - previous) / Math.abs(previous)) * 100
+  const formatted = `${delta > 0 ? "+" : ""}${delta.toFixed(1)}%`
+
+  if (Math.abs(delta) < 0.1) {
+    return <span className="text-xs text-muted-foreground">0,0%</span>
+  }
+
+  // For profit: increase is good (green), decrease is bad (red)
+  return delta > 0 ? (
+    <span className="inline-flex items-center gap-0.5 text-xs font-medium text-green-600">
+      <ArrowUp className="size-3" /> {formatted}
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-0.5 text-xs font-medium text-red-600">
+      <ArrowDown className="size-3" /> {formatted}
+    </span>
   )
 }
