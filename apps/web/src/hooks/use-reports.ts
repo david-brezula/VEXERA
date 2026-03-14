@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { useOrganization } from "@/providers/organization-provider"
 import { queryKeys } from "@/lib/query-keys"
-import { useState, useCallback } from "react"
+import { useCallback, useRef } from "react"
 import type { CategoryBreakdown } from "@/lib/services/reports/report.types"
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -28,30 +28,33 @@ interface CachedResponse<T> {
 export function useCategoryReport(period: { from: string; to: string }) {
   const { activeOrg } = useOrganization()
   const orgId = activeOrg?.id ?? ""
-  const [refreshFlag, setRefreshFlag] = useState(0)
+  const refreshRef = useRef(false)
 
   const query = useQuery({
-    queryKey: [...queryKeys.reports.categories(orgId, period), refreshFlag],
+    queryKey: [...queryKeys.reports.categories(orgId, period), refreshRef.current ? "refresh" : ""],
     queryFn: async () => {
       const params = new URLSearchParams({
         organization_id: orgId,
         from: period.from,
         to: period.to,
       })
-      if (refreshFlag > 0) {
+      if (refreshRef.current) {
         params.set("refresh", "true")
       }
       const result = await fetchJson<CachedResponse<CategoryBreakdown>>(
         `/api/reports/category?${params}`
       )
+      // Reset refresh flag after fetch completes
+      refreshRef.current = false
       return result
     },
     enabled: !!orgId && !!period.from && !!period.to,
   })
 
   const refresh = useCallback(() => {
-    setRefreshFlag((prev) => prev + 1)
-  }, [])
+    refreshRef.current = true
+    query.refetch()
+  }, [query])
 
   return {
     ...query,

@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useState, useMemo, useCallback, useTransition } from "react"
+import { Fragment, useState, useMemo, useCallback, useTransition, useRef } from "react"
 import { ArrowLeft, ArrowUp, ArrowDown, ChevronRight, ChevronDown, Download, RefreshCw, Table as TableIcon } from "lucide-react"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
@@ -28,24 +28,10 @@ import {
   exportPLReportPdfAction,
   exportPLReportExcelAction,
 } from "@/lib/actions/report-export"
+import { formatRelativeTime } from "@/lib/utils/format-relative-time"
 
 interface PLPageClientProps {
   tagType: "client" | "project"
-}
-
-function formatRelativeTime(isoString: string): string {
-  const now = Date.now()
-  const then = new Date(isoString).getTime()
-  const diffMs = now - then
-  const diffSec = Math.floor(diffMs / 1000)
-  const diffMin = Math.floor(diffSec / 60)
-  const diffHr = Math.floor(diffMin / 60)
-
-  if (diffMin < 1) return "Práve vygenerované"
-  if (diffMin === 1) return "Pred 1 minútou"
-  if (diffMin < 60) return `Pred ${diffMin} minútami`
-  if (diffHr === 1) return "Pred 1 hodinou"
-  return `Pred ${diffHr} hodinami`
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -65,7 +51,7 @@ export function PLPageClient({ tagType }: PLPageClientProps) {
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
   const [isPdfExporting, startPdfTransition] = useTransition()
   const [isExcelExporting, startExcelTransition] = useTransition()
-  const [refreshFlag, setRefreshFlag] = useState(0)
+  const refreshRef = useRef(false)
   const period = periodOptions.find((p) => p.value === periodKey) ?? periodOptions[2]
 
   // Calculate previous period by shifting from/to back by the period length
@@ -84,8 +70,8 @@ export function PLPageClient({ tagType }: PLPageClientProps) {
     ? queryKeys.reports.clientPL(orgId, { from: period.from, to: period.to })
     : queryKeys.reports.projectPL(orgId, { from: period.from, to: period.to })
 
-  const { data: queryResult, isLoading, isFetching } = useQuery({
-    queryKey: [...queryKey, refreshFlag],
+  const plQuery = useQuery({
+    queryKey: queryKey,
     queryFn: async () => {
       const params = new URLSearchParams({
         organization_id: orgId,
@@ -93,23 +79,26 @@ export function PLPageClient({ tagType }: PLPageClientProps) {
         to: period.to,
         tag_type: tagType,
       })
-      if (refreshFlag > 0) {
+      if (refreshRef.current) {
         params.set("refresh", "true")
       }
       const result = await fetchJson<{ data: PLReport[]; cached?: boolean; generatedAt?: string }>(
         `/api/reports/client-pl?${params}`
       )
+      refreshRef.current = false
       return result
     },
     enabled: !!orgId,
   })
 
-  const reports = queryResult?.data ?? []
-  const generatedAt = queryResult?.generatedAt
+  const { isLoading, isFetching } = plQuery
+  const reports = plQuery.data?.data ?? []
+  const generatedAt = plQuery.data?.generatedAt
 
   const handleRefresh = useCallback(() => {
-    setRefreshFlag((prev) => prev + 1)
-  }, [])
+    refreshRef.current = true
+    plQuery.refetch()
+  }, [plQuery])
 
   const comparisonQueryKey = tagType === "client"
     ? queryKeys.reports.clientPL(orgId, { from: comparisonPeriod.from, to: comparisonPeriod.to })
