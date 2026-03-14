@@ -1,10 +1,12 @@
 "use client"
 
+import { useState, useEffect, useTransition } from "react"
 import { format } from "date-fns"
 import { BanknoteIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { useBankTransactions, useIgnoreTransaction } from "@/hooks/use-bank"
+import { getSuggestionsAction } from "@/lib/actions/categorization"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -97,6 +99,48 @@ function IgnoreButton({ transaction }: { transaction: BankTransaction }) {
       ) : null}
       Ignore
     </Button>
+  )
+}
+
+// ─── Transaction category suggestion (inline, informational only) ─────────────
+
+function TransactionCategorySuggestion({
+  counterpartName,
+  amount,
+}: {
+  counterpartName: string | null
+  amount: number | null
+}) {
+  const [label, setLabel] = useState<string | null>(null)
+  const [, startTransition] = useTransition()
+
+  useEffect(() => {
+    let cancelled = false
+
+    startTransition(async () => {
+      const results = await getSuggestionsAction({
+        supplier_name: counterpartName,
+        total_amount: amount,
+        description: null,
+      })
+      if (!cancelled && results.length > 0) {
+        const top = results[0]
+        setLabel(`Suggestion: ${top.category} (${Math.round(top.confidence * 100)}%)`)
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [counterpartName, amount])
+
+  if (!label) return null
+
+  return (
+    <span className="block text-xs text-muted-foreground/70 mt-0.5 italic">
+      {label}
+    </span>
   )
 }
 
@@ -199,6 +243,12 @@ export function BankTransactionsTable({ matchStatus, bankAccountId }: Props) {
                   </span>
                 ) : (
                   "—"
+                )}
+                {tx.match_status === "unmatched" && (
+                  <TransactionCategorySuggestion
+                    counterpartName={tx.counterpart_name}
+                    amount={tx.amount}
+                  />
                 )}
               </TableCell>
 
