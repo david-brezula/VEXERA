@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useCallback, useTransition } from "react"
-import { ArrowLeft, Download, Table } from "lucide-react"
+import { ArrowLeft, Download, RefreshCw, Table } from "lucide-react"
 import Link from "next/link"
 
 import { useCategoryReport } from "@/hooks/use-reports"
@@ -17,6 +17,21 @@ import {
   exportCategoryReportPdfAction,
   exportCategoryReportExcelAction,
 } from "@/lib/actions/report-export"
+
+function formatRelativeTime(isoString: string): string {
+  const now = Date.now()
+  const then = new Date(isoString).getTime()
+  const diffMs = now - then
+  const diffSec = Math.floor(diffMs / 1000)
+  const diffMin = Math.floor(diffSec / 60)
+  const diffHr = Math.floor(diffMin / 60)
+
+  if (diffMin < 1) return "Práve vygenerované"
+  if (diffMin === 1) return "Pred 1 minútou"
+  if (diffMin < 60) return `Pred ${diffMin} minútami`
+  if (diffHr === 1) return "Pred 1 hodinou"
+  return `Pred ${diffHr} hodinami`
+}
 
 export function CategoriesPageClient() {
   const [periodKey, setPeriodKey] = useState("current_quarter")
@@ -38,7 +53,7 @@ export function CategoriesPageClient() {
     return { from: fmt(prevFrom), to: fmt(prevTo) }
   }, [period.from, period.to])
 
-  const { data: report, isLoading } = useCategoryReport({
+  const { data: report, isLoading, isFetching, cached, generatedAt, refresh } = useCategoryReport({
     from: period.from,
     to: period.to,
   })
@@ -98,6 +113,21 @@ export function CategoriesPageClient() {
         <PeriodSelector value={periodKey} onValueChange={setPeriodKey} />
 
         <div className="flex items-center gap-2 ml-auto">
+          {generatedAt && (
+            <span className="text-xs text-muted-foreground">
+              {formatRelativeTime(generatedAt)}
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-8"
+            onClick={refresh}
+            disabled={isFetching}
+            title="Obnoviť dáta"
+          >
+            <RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />
+          </Button>
           <Button variant="outline" size="sm" onClick={handlePdfExport} disabled={isPdfExporting}>
             <Download className="size-4 mr-1" />
             {isPdfExporting ? "..." : "PDF"}
