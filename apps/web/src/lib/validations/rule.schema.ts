@@ -21,6 +21,7 @@ export const ruleFormSchema = z.object({
   description: z.string().max(1000).optional(),
   target_entity: z.enum(["document", "bank_transaction"]),
   priority: z.coerce.number().int().min(1).max(9999),
+  logic_operator: z.enum(["AND", "OR"]).default("AND"),
   conditions: z.array(ruleConditionSchema).min(1, { error: "At least one condition is required" }),
   actions: z.array(ruleActionSchema).min(1, { error: "At least one action is required" }),
 })
