@@ -16,6 +16,7 @@ import {
   Receipt,
   Calculator,
   Palette,
+  MessageSquare,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -53,6 +54,7 @@ const navGroups: { label: string; items: NavItemDef[] }[] = [
     items: [
       { href: "/rules", label: "Rules", icon: Zap },
       { href: "/export", label: "Export", icon: Download },
+      { href: "/chat", label: "AI Assistant", icon: MessageSquare },
     ],
   },
   {
