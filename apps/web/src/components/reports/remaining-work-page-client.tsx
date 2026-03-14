@@ -1,15 +1,18 @@
 "use client"
 
+import { useCallback, useTransition } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useOrganization } from "@/providers/organization-provider"
 import { queryKeys } from "@/lib/query-keys"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { RemainingWorkTable } from "./remaining-work-table"
-import { Calendar, Clock, CheckCircle } from "lucide-react"
+import { Calendar, Clock, CheckCircle, Download } from "lucide-react"
 import type { RemainingWorkReport } from "@/lib/services/reports/report.types"
+import { exportRemainingWorkReportPdfAction } from "@/lib/actions/report-export"
 
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url)
@@ -20,6 +23,17 @@ async function fetchJson<T>(url: string): Promise<T> {
 export function RemainingWorkPageClient() {
   const { activeOrg } = useOrganization()
   const orgId = activeOrg?.id ?? ""
+  const [isPdfExporting, startPdfTransition] = useTransition()
+
+  const handlePdfExport = useCallback(() => {
+    startPdfTransition(async () => {
+      const result = await exportRemainingWorkReportPdfAction()
+      if ("error" in result) return
+      const blob = new Blob([result.html], { type: "text/html;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      window.open(url, "_blank")
+    })
+  }, [])
 
   const { data: report, isLoading } = useQuery({
     queryKey: queryKeys.reports.remainingWork(orgId),
@@ -49,6 +63,14 @@ export function RemainingWorkPageClient() {
 
   return (
     <div className="space-y-6">
+      {/* Export button */}
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={handlePdfExport} disabled={isPdfExporting}>
+          <Download className="size-4 mr-1" />
+          {isPdfExporting ? "..." : "PDF"}
+        </Button>
+      </div>
+
       {/* Summary cards */}
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>

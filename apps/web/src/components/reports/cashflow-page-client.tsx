@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useCallback } from "react"
 import Link from "next/link"
 import {
   ArrowLeft,
   AlertTriangle,
+  Download,
   TrendingDown,
   TrendingUp,
   Trash2,
@@ -42,6 +43,7 @@ import {
   createScenarioAction,
   deleteScenarioAction,
 } from "@/lib/actions/cashflow"
+import { exportCashflowReportPdfAction } from "@/lib/actions/report-export"
 import type { CashFlowSummary, CashFlowPoint } from "@/lib/data/cashflow"
 import type { CashflowScenario, ScenarioAdjustment } from "@/lib/services/cashflow-scenarios.service"
 import { applyScenarioAdjustments } from "@/lib/services/cashflow-scenarios.service"
@@ -79,6 +81,17 @@ export function CashflowPageClient() {
   const { activeOrg } = useOrganization()
   const orgId = activeOrg?.id ?? ""
   const queryClient = useQueryClient()
+  const [isPdfExporting, startPdfTransition] = useTransition()
+
+  const handlePdfExport = useCallback(() => {
+    startPdfTransition(async () => {
+      const result = await exportCashflowReportPdfAction()
+      if ("error" in result) return
+      const blob = new Blob([result.html], { type: "text/html;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      window.open(url, "_blank")
+    })
+  }, [])
 
   // Fetch cashflow data
   const { data: cashflowData, isLoading: cashflowLoading } = useQuery({
@@ -151,6 +164,12 @@ export function CashflowPageClient() {
           <p className="text-sm text-muted-foreground">
             90-day projection with scenario analysis
           </p>
+        </div>
+        <div className="ml-auto">
+          <Button variant="outline" size="sm" onClick={handlePdfExport} disabled={isPdfExporting}>
+            <Download className="size-4 mr-1" />
+            {isPdfExporting ? "..." : "PDF"}
+          </Button>
         </div>
       </div>
 

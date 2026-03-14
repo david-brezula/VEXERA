@@ -1,22 +1,29 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
-import { ArrowLeft } from "lucide-react"
+import { useState, useMemo, useCallback, useTransition } from "react"
+import { ArrowLeft, Download, Table } from "lucide-react"
 import Link from "next/link"
 
 import { useCategoryReport } from "@/hooks/use-reports"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { PeriodSelector, periodOptions } from "./period-selector"
 import { CategoryTable } from "./category-table"
 import { CategoryBarChart } from "@/components/charts/category-bar-chart"
+import {
+  exportCategoryReportPdfAction,
+  exportCategoryReportExcelAction,
+} from "@/lib/actions/report-export"
 
 export function CategoriesPageClient() {
   const [periodKey, setPeriodKey] = useState("current_quarter")
   const [activeTab, setActiveTab] = useState<"expenses" | "revenue">("expenses")
   const [isComparing, setIsComparing] = useState(false)
+  const [isPdfExporting, startPdfTransition] = useTransition()
+  const [isExcelExporting, startExcelTransition] = useTransition()
   const period = periodOptions.find((p) => p.value === periodKey) ?? periodOptions[2]
 
   // Calculate previous period by shifting from/to back by the period length
@@ -57,6 +64,31 @@ export function CategoriesPageClient() {
     setIsComparing(checked)
   }, [])
 
+  const handlePdfExport = useCallback(() => {
+    startPdfTransition(async () => {
+      const result = await exportCategoryReportPdfAction(period.from, period.to)
+      if ("error" in result) return
+      const blob = new Blob([result.html], { type: "text/html;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      window.open(url, "_blank")
+    })
+  }, [period.from, period.to])
+
+  const handleExcelExport = useCallback(() => {
+    startExcelTransition(async () => {
+      const result = await exportCategoryReportExcelAction(period.from, period.to)
+      if ("error" in result) return
+      const bytes = Uint8Array.from(atob(result.base64), (c) => c.charCodeAt(0))
+      const blob = new Blob([bytes], { type: "text/csv;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = result.filename
+      a.click()
+      URL.revokeObjectURL(url)
+    })
+  }, [period.from, period.to])
+
   return (
     <>
       <div className="flex items-center gap-3 mb-2">
@@ -66,6 +98,14 @@ export function CategoriesPageClient() {
         <PeriodSelector value={periodKey} onValueChange={setPeriodKey} />
 
         <div className="flex items-center gap-2 ml-auto">
+          <Button variant="outline" size="sm" onClick={handlePdfExport} disabled={isPdfExporting}>
+            <Download className="size-4 mr-1" />
+            {isPdfExporting ? "..." : "PDF"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExcelExport} disabled={isExcelExporting}>
+            <Table className="size-4 mr-1" />
+            {isExcelExporting ? "..." : "Excel"}
+          </Button>
           <Switch
             id="compare-toggle"
             checked={isComparing}

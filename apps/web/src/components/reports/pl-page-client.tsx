@@ -1,7 +1,7 @@
 "use client"
 
-import { Fragment, useState, useMemo, useCallback } from "react"
-import { ArrowLeft, ArrowUp, ArrowDown, ChevronRight, ChevronDown } from "lucide-react"
+import { Fragment, useState, useMemo, useCallback, useTransition } from "react"
+import { ArrowLeft, ArrowUp, ArrowDown, ChevronRight, ChevronDown, Download, Table as TableIcon } from "lucide-react"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 
@@ -19,10 +19,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Button } from "@/components/ui/button"
 import { PeriodSelector, periodOptions } from "./period-selector"
 import { PLBarChart } from "@/components/charts/pl-bar-chart"
 import { formatEur } from "@vexera/utils"
 import type { PLReport } from "@/lib/services/reports/report.types"
+import {
+  exportPLReportPdfAction,
+  exportPLReportExcelAction,
+} from "@/lib/actions/report-export"
 
 interface PLPageClientProps {
   tagType: "client" | "project"
@@ -43,6 +48,8 @@ export function PLPageClient({ tagType }: PLPageClientProps) {
   const [periodKey, setPeriodKey] = useState("current_quarter")
   const [isComparing, setIsComparing] = useState(false)
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
+  const [isPdfExporting, startPdfTransition] = useTransition()
+  const [isExcelExporting, startExcelTransition] = useTransition()
   const period = periodOptions.find((p) => p.value === periodKey) ?? periodOptions[2]
 
   // Calculate previous period by shifting from/to back by the period length
@@ -126,6 +133,31 @@ export function PLPageClient({ tagType }: PLPageClientProps) {
     setIsComparing(checked)
   }, [])
 
+  const handlePdfExport = useCallback(() => {
+    startPdfTransition(async () => {
+      const result = await exportPLReportPdfAction(period.from, period.to, tagType)
+      if ("error" in result) return
+      const blob = new Blob([result.html], { type: "text/html;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      window.open(url, "_blank")
+    })
+  }, [period.from, period.to, tagType])
+
+  const handleExcelExport = useCallback(() => {
+    startExcelTransition(async () => {
+      const result = await exportPLReportExcelAction(period.from, period.to, tagType)
+      if ("error" in result) return
+      const bytes = Uint8Array.from(atob(result.base64), (c) => c.charCodeAt(0))
+      const blob = new Blob([bytes], { type: "text/csv;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = result.filename
+      a.click()
+      URL.revokeObjectURL(url)
+    })
+  }, [period.from, period.to, tagType])
+
   const handleRowClick = useCallback((entityTagId: string) => {
     setExpandedRow((prev) => (prev === entityTagId ? null : entityTagId))
   }, [])
@@ -141,6 +173,14 @@ export function PLPageClient({ tagType }: PLPageClientProps) {
         <PeriodSelector value={periodKey} onValueChange={setPeriodKey} />
 
         <div className="flex items-center gap-2 ml-auto">
+          <Button variant="outline" size="sm" onClick={handlePdfExport} disabled={isPdfExporting}>
+            <Download className="size-4 mr-1" />
+            {isPdfExporting ? "..." : "PDF"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExcelExport} disabled={isExcelExporting}>
+            <TableIcon className="size-4 mr-1" />
+            {isExcelExporting ? "..." : "Excel"}
+          </Button>
           <Switch
             id="pl-compare-toggle"
             checked={isComparing}
