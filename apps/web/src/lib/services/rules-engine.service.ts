@@ -13,7 +13,7 @@ export interface EvaluationTarget {
 
 // ─── Condition evaluation ──────────────────────────────────────────────────────
 
-function evaluateCondition(
+export function evaluateCondition(
   condition: RuleCondition,
   target: EvaluationTarget
 ): boolean {
@@ -53,6 +53,10 @@ function evaluateCondition(
 export function evaluateRule(rule: Rule, target: EvaluationTarget): boolean {
   if (!rule.is_active) return false
   if (rule.conditions.length === 0) return false
+  const op = rule.logic_operator ?? 'AND'
+  if (op === 'OR') {
+    return rule.conditions.some((c) => evaluateCondition(c, target))
+  }
   return rule.conditions.every((c) => evaluateCondition(c, target))
 }
 

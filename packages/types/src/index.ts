@@ -173,6 +173,7 @@ export interface Rule {
   is_active: boolean
   priority: number
   target_entity: RuleTargetEntity
+  logic_operator: 'AND' | 'OR'
   conditions: RuleCondition[]
   actions: RuleAction[]
   applied_count: number
