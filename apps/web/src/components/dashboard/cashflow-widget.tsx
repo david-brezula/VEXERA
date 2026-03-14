@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { CashflowAreaChart } from "@/components/charts/cashflow-area-chart"
 import type { CashFlowSummary, CashFlowPoint } from "@/lib/data/cashflow"
 
 interface CashFlowWidgetProps {
@@ -112,6 +113,26 @@ export function CashFlowWidget({ summary, forecast }: CashFlowWidgetProps) {
           </CardContent>
         </Card>
       )}
+
+      {/* Area chart */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">Forecast Chart</CardTitle>
+          <CardDescription className="text-xs">
+            Projected balance over the next 90 days
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CashflowAreaChart
+            forecast={forecast.map((p) => ({
+              date: p.date,
+              balance: p.balance,
+              inflows: p.inflows,
+              outflows: p.outflows,
+            }))}
+          />
+        </CardContent>
+      </Card>
 
       {/* Weekly forecast table */}
       <Card>
