@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import {
   AreaChart,
   Area,
@@ -68,6 +69,18 @@ export function CashflowAreaChart({
 
   const hasScenarios = scenarios && scenarios.length > 0
 
+  // Compute where y=0 falls in the chart range to split green/red gradient
+  const { zeroOffset, minBalance, maxBalance, hasNegative } = useMemo(() => {
+    const balances = forecast.map((p) => p.balance)
+    const min = Math.min(...balances)
+    const max = Math.max(...balances)
+    const allNeg = max <= 0
+    const allPos = min >= 0
+    // offset is the percentage from top where y=0 sits
+    const offset = allPos ? 1 : allNeg ? 0 : max / (max - min)
+    return { zeroOffset: offset, minBalance: min, maxBalance: max, hasNegative: min < 0 }
+  }, [forecast])
+
   return (
     <ChartWrapper height={height}>
       <AreaChart
@@ -77,7 +90,13 @@ export function CashflowAreaChart({
         <defs>
           <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#22c55e" stopOpacity={0.3} />
-            <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
+            <stop offset={`${zeroOffset * 100}%`} stopColor="#22c55e" stopOpacity={0.05} />
+            <stop offset={`${zeroOffset * 100}%`} stopColor="#ef4444" stopOpacity={0.05} />
+            <stop offset="100%" stopColor="#ef4444" stopOpacity={0.3} />
+          </linearGradient>
+          <linearGradient id="balanceStroke" x1="0" y1="0" x2="0" y2="1">
+            <stop offset={`${zeroOffset * 100}%`} stopColor="#22c55e" />
+            <stop offset={`${zeroOffset * 100}%`} stopColor="#ef4444" />
           </linearGradient>
         </defs>
 
@@ -116,7 +135,7 @@ export function CashflowAreaChart({
         <Area
           type="monotone"
           dataKey="balance"
-          stroke="#22c55e"
+          stroke="url(#balanceStroke)"
           strokeWidth={2}
           fill="url(#balanceGradient)"
           name="Forecast"
