@@ -1,23 +1,61 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo, useCallback } from "react"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
 import { useCategoryReport } from "@/hooks/use-reports"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 import { PeriodSelector, periodOptions } from "./period-selector"
 import { CategoryTable } from "./category-table"
+import { CategoryBarChart } from "@/components/charts/category-bar-chart"
 
 export function CategoriesPageClient() {
   const [periodKey, setPeriodKey] = useState("current_quarter")
+  const [activeTab, setActiveTab] = useState<"expenses" | "revenue">("expenses")
+  const [isComparing, setIsComparing] = useState(false)
   const period = periodOptions.find((p) => p.value === periodKey) ?? periodOptions[2]
+
+  // Calculate previous period by shifting from/to back by the period length
+  const comparisonPeriod = useMemo(() => {
+    const fromDate = new Date(period.from)
+    const toDate = new Date(period.to)
+    const durationMs = toDate.getTime() - fromDate.getTime() + 86_400_000 // inclusive
+    const prevTo = new Date(fromDate.getTime() - 86_400_000) // day before current from
+    const prevFrom = new Date(prevTo.getTime() - durationMs + 86_400_000)
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    return { from: fmt(prevFrom), to: fmt(prevTo) }
+  }, [period.from, period.to])
 
   const { data: report, isLoading } = useCategoryReport({
     from: period.from,
     to: period.to,
   })
+
+  const { data: comparisonReport } = useCategoryReport({
+    from: isComparing ? comparisonPeriod.from : "",
+    to: isComparing ? comparisonPeriod.to : "",
+  })
+
+  const chartData = useMemo(() => {
+    if (!report) return []
+    const rows = activeTab === "expenses" ? report.expensesByCategory : report.revenueByCategory
+    return rows.map((r) => ({ category: r.category, totalAmount: r.totalAmount }))
+  }, [report, activeTab])
+
+  const comparisonChartData = useMemo(() => {
+    if (!comparisonReport || !isComparing) return undefined
+    const rows = activeTab === "expenses" ? comparisonReport.expensesByCategory : comparisonReport.revenueByCategory
+    return rows.map((r) => ({ category: r.category, totalAmount: r.totalAmount }))
+  }, [comparisonReport, isComparing, activeTab])
+
+  const handleCompareToggle = useCallback((checked: boolean) => {
+    setIsComparing(checked)
+  }, [])
 
   return (
     <>
@@ -26,6 +64,17 @@ export function CategoriesPageClient() {
           <ArrowLeft className="size-5" />
         </Link>
         <PeriodSelector value={periodKey} onValueChange={setPeriodKey} />
+
+        <div className="flex items-center gap-2 ml-auto">
+          <Switch
+            id="compare-toggle"
+            checked={isComparing}
+            onCheckedChange={handleCompareToggle}
+          />
+          <Label htmlFor="compare-toggle" className="text-sm cursor-pointer">
+            Porovnať s predchádzajúcim obdobím
+          </Label>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -64,8 +113,26 @@ export function CategoriesPageClient() {
         </div>
       )}
 
+      {/* Category bar chart */}
+      {report && chartData.length > 0 && (
+        <Card className="mt-4">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Top kategórie ({activeTab === "expenses" ? "Náklady" : "Výnosy"})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CategoryBarChart
+              data={chartData}
+              type={activeTab}
+              comparisonData={comparisonChartData}
+            />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Category tables */}
-      <Tabs defaultValue="expenses">
+      <Tabs defaultValue="expenses" onValueChange={(v) => setActiveTab(v as "expenses" | "revenue")}>
         <TabsList>
           <TabsTrigger value="expenses">Náklady</TabsTrigger>
           <TabsTrigger value="revenue">Výnosy</TabsTrigger>
@@ -79,6 +146,7 @@ export function CategoriesPageClient() {
               rows={report?.expensesByCategory ?? []}
               total={report?.totalExpenses ?? 0}
               currency={report?.currency}
+              comparisonRows={isComparing ? comparisonReport?.expensesByCategory : undefined}
             />
           )}
         </TabsContent>
@@ -91,6 +159,7 @@ export function CategoriesPageClient() {
               rows={report?.revenueByCategory ?? []}
               total={report?.totalRevenue ?? 0}
               currency={report?.currency}
+              comparisonRows={isComparing ? comparisonReport?.revenueByCategory : undefined}
             />
           )}
         </TabsContent>
