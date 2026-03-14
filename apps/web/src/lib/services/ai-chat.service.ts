@@ -41,7 +41,7 @@ export interface ProcessQueryResult {
 
 // ─── Context Building ────────────────────────────────────────────────────────
 
-async function buildOrgContext(
+export async function buildOrgContext(
   supabase: SupabaseClient,
   organizationId: string
 ): Promise<string> {
@@ -78,12 +78,59 @@ async function buildOrgContext(
     ((categories ?? []) as unknown as { category: string }[]).map(c => c.category)
   )]
 
+  // Outstanding AR (accounts receivable) — unpaid issued invoices
+  const { data: arData } = await supabase
+    .from("invoices")
+    .select("total_amount")
+    .eq("organization_id", organizationId)
+    .eq("invoice_type", "issued")
+    .in("status", ["sent", "overdue"])
+
+  const arTotal = ((arData ?? []) as unknown as { total_amount: number }[])
+    .reduce((sum, inv) => sum + (inv.total_amount ?? 0), 0)
+
+  // Outstanding AP (accounts payable) — unpaid received invoices
+  const { data: apData } = await supabase
+    .from("invoices")
+    .select("total_amount")
+    .eq("organization_id", organizationId)
+    .eq("invoice_type", "received")
+    .in("status", ["sent", "overdue"])
+
+  const apTotal = ((apData ?? []) as unknown as { total_amount: number }[])
+    .reduce((sum, inv) => sum + (inv.total_amount ?? 0), 0)
+
+  // This month's expenses
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0]
+  const { data: monthExpenses } = await supabase
+    .from("documents")
+    .select("total_amount")
+    .eq("organization_id", organizationId)
+    .in("document_type", ["invoice_received", "receipt", "expense"])
+    .gte("issue_date", monthStart)
+    .is("deleted_at", null)
+
+  const monthExpenseTotal = ((monthExpenses ?? []) as unknown as { total_amount: number }[])
+    .reduce((sum, doc) => sum + (doc.total_amount ?? 0), 0)
+
+  // Unmatched bank transactions
+  const { count: unmatchedCount } = await supabase
+    .from("bank_transactions")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId)
+    .is("matched_invoice_id", null)
+
   return `
 Organization: ${orgInfo?.name ?? "Unknown"}
 Country: ${orgInfo?.country ?? "SK"}
 Currency: ${orgInfo?.currency ?? "EUR"}
 Total documents: ${docCount ?? 0}
 Total invoices: ${invoiceCount ?? 0}
+Outstanding receivables (AR): ${arTotal.toFixed(2)} EUR
+Outstanding payables (AP): ${apTotal.toFixed(2)} EUR
+This month's expenses: ${monthExpenseTotal.toFixed(2)} EUR
+Unmatched bank transactions: ${unmatchedCount ?? 0}
 Categories in use: ${uniqueCategories.join(", ") || "none"}
 
 Available data tables (read-only):
@@ -96,7 +143,7 @@ Available data tables (read-only):
 
 // ─── Session Management ──────────────────────────────────────────────────────
 
-async function getOrCreateSession(
+export async function getOrCreateSession(
   supabase: SupabaseClient,
   organizationId: string,
   userId: string,
@@ -131,7 +178,7 @@ async function getOrCreateSession(
   return (newSession as { id: string }).id
 }
 
-async function saveMessage(
+export async function saveMessage(
   supabase: SupabaseClient,
   sessionId: string,
   role: "user" | "assistant" | "system",
@@ -152,7 +199,7 @@ async function saveMessage(
 /**
  * Fetches financial data based on the user's query to provide context to Claude.
  */
-async function fetchRelevantData(
+export async function fetchRelevantData(
   supabase: SupabaseClient,
   organizationId: string,
   query: string
@@ -261,6 +308,42 @@ async function fetchRelevantData(
         results.push(`  ${name}: ${amount.toFixed(2)} EUR`)
       }
     }
+  }
+
+  // Bank / transaction queries
+  if (lowerQuery.includes("bank") || lowerQuery.includes("transakci")) {
+    const { data: unmatched } = await supabase
+      .from("bank_transactions")
+      .select("amount, currency, date, description, counterparty_name")
+      .eq("organization_id", organizationId)
+      .is("matched_invoice_id", null)
+      .order("date", { ascending: false })
+      .limit(15)
+
+    if (unmatched && unmatched.length > 0) {
+      const typedTxns = unmatched as unknown as {
+        amount: number
+        currency: string
+        date: string
+        description: string
+        counterparty_name: string | null
+      }[]
+      results.push(`\nRecent unmatched bank transactions (${typedTxns.length}):`)
+      for (const txn of typedTxns) {
+        results.push(
+          `  ${txn.date}: ${txn.amount} ${txn.currency} — ${txn.counterparty_name ?? txn.description}`
+        )
+      }
+    }
+  }
+
+  // Pattern / recurring queries
+  if (lowerQuery.includes("pattern") || lowerQuery.includes("opakuj") || lowerQuery.includes("recurring")) {
+    results.push(
+      `\nNote: The system supports automatic pattern detection for recurring bank transactions. ` +
+      `Patterns are identified based on matching counterparty names, similar amounts, and regular intervals. ` +
+      `Check the Bank section for detected patterns.`
+    )
   }
 
   return results.join("\n")
