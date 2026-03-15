@@ -42,7 +42,7 @@ export function InvoiceItemsEditor({ control }: Props) {
       quantity: 1,
       unit: "ks",
       unit_price_net: 0,
-      vat_rate: 20,
+      vat_rate: 23,
       sort_order: fields.length,
     })
   }
@@ -102,7 +102,7 @@ export function InvoiceItemsEditor({ control }: Props) {
                 description: product.name,
                 unit: product.unit,
                 unit_price_net: product.unit_price_net,
-                vat_rate: product.vat_rate as 20 | 10 | 5 | 0,
+                vat_rate: product.vat_rate as 23 | 19 | 5 | 0,
                 product_id: product.id,
                 sort_order: index,
               })

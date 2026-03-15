@@ -41,6 +41,7 @@ const UpdateRuleSchema = z.object({
   is_active: z.boolean().optional(),
   priority: z.number().int().min(1).max(9999).optional(),
   target_entity: z.enum(["document", "bank_transaction"]).optional(),
+  logic_operator: z.enum(["AND", "OR"]).optional(),
   conditions: z.array(ConditionSchema).min(1).optional(),
   actions: z.array(ActionSchema).min(1).optional(),
 })
@@ -124,7 +125,7 @@ export async function PATCH(request: Request, { params }: Params) {
       .update(parsed.data)
       .eq("id", id)
       .eq("organization_id", rule.organization_id)
-      .select("id, name, description, is_active, priority, target_entity, conditions, actions, updated_at")
+      .select("id, name, description, is_active, priority, target_entity, logic_operator, conditions, actions, updated_at")
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

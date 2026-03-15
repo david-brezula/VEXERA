@@ -60,6 +60,7 @@ const CreateRuleSchema = z.object({
   is_active: z.boolean().default(true),
   priority: z.number().int().min(1).max(9999).default(100),
   target_entity: z.enum(["document", "bank_transaction"]),
+  logic_operator: z.enum(["AND", "OR"]).default("AND"),
   conditions: z.array(ConditionSchema).min(1, "At least one condition is required"),
   actions: z.array(ActionSchema).min(1, "At least one action is required"),
 })
@@ -89,7 +90,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from("rules")
-      .select("id, name, description, is_active, priority, target_entity, conditions, actions, applied_count, last_applied_at, created_by, created_at, updated_at")
+      .select("id, name, description, is_active, priority, target_entity, logic_operator, conditions, actions, applied_count, last_applied_at, created_by, created_at, updated_at")
       .eq("organization_id", organizationId)
       .order("priority", { ascending: true })
       .order("created_at", { ascending: true })
@@ -141,7 +142,7 @@ export async function POST(request: Request) {
         created_by: user.id,
         ...fields,
       })
-      .select("id, name, description, is_active, priority, target_entity, conditions, actions, created_at")
+      .select("id, name, description, is_active, priority, target_entity, logic_operator, conditions, actions, created_at")
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

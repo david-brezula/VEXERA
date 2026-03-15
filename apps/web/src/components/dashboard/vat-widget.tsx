@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+import { ArrowRight } from "lucide-react"
 import { formatEur } from "@vexera/utils"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -99,23 +101,23 @@ export function VatWidget({ current, timeline }: VatWidgetProps) {
           </TableHeader>
           <TableBody>
             <TableRow>
-              <TableCell className="font-medium">20%</TableCell>
-              <TableCell className="text-right tabular-nums">{formatEur(current.vat_output_20)}</TableCell>
-              <TableCell className="text-right tabular-nums">{formatEur(current.vat_input_20)}</TableCell>
+              <TableCell className="font-medium">23%</TableCell>
+              <TableCell className="text-right tabular-nums">{formatEur(current.vat_output_23)}</TableCell>
+              <TableCell className="text-right tabular-nums">{formatEur(current.vat_input_23)}</TableCell>
               <TableCell className={`text-right font-medium tabular-nums ${
-                current.vat_output_20 - current.vat_input_20 > 0 ? "text-red-600" : "text-green-600"
+                current.vat_output_23 - current.vat_input_23 > 0 ? "text-red-600" : "text-green-600"
               }`}>
-                {formatEur(current.vat_output_20 - current.vat_input_20)}
+                {formatEur(current.vat_output_23 - current.vat_input_23)}
               </TableCell>
             </TableRow>
             <TableRow>
-              <TableCell className="font-medium">10%</TableCell>
-              <TableCell className="text-right tabular-nums">{formatEur(current.vat_output_10)}</TableCell>
-              <TableCell className="text-right tabular-nums">{formatEur(current.vat_input_10)}</TableCell>
+              <TableCell className="font-medium">19%</TableCell>
+              <TableCell className="text-right tabular-nums">{formatEur(current.vat_output_19)}</TableCell>
+              <TableCell className="text-right tabular-nums">{formatEur(current.vat_input_19)}</TableCell>
               <TableCell className={`text-right font-medium tabular-nums ${
-                current.vat_output_10 - current.vat_input_10 > 0 ? "text-red-600" : "text-green-600"
+                current.vat_output_19 - current.vat_input_19 > 0 ? "text-red-600" : "text-green-600"
               }`}>
-                {formatEur(current.vat_output_10 - current.vat_input_10)}
+                {formatEur(current.vat_output_19 - current.vat_input_19)}
               </TableCell>
             </TableRow>
             <TableRow>
@@ -172,6 +174,17 @@ export function VatWidget({ current, timeline }: VatWidgetProps) {
           </Table>
         </Card>
       )}
+
+      {/* Link to VAT Returns */}
+      <div className="flex justify-end">
+        <Link
+          href="/tax/vat"
+          className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+        >
+          View VAT Returns
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+      </div>
     </div>
   )
 }

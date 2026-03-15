@@ -3,6 +3,7 @@ import Link from "next/link"
 import { PlusIcon } from "lucide-react"
 
 import { getInvoices, type InvoiceFilters } from "@/lib/data/invoices"
+import { ImportEInvoiceDialog } from "@/components/invoices/import-einvoice-dialog"
 import { getActiveOrgId } from "@/lib/data/org"
 import { InvoiceFilters as InvoiceFiltersBar } from "@/components/invoices/invoice-filters"
 import { InvoiceTableClient } from "@/components/invoices/invoice-table-client"
@@ -95,12 +96,15 @@ export default async function InvoicesPage({
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Invoices</h1>
         </div>
-        <Button asChild>
-          <Link href="/invoices/new">
-            <PlusIcon className="size-4" />
-            New invoice
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <ImportEInvoiceDialog />
+          <Button asChild>
+            <Link href="/invoices/new">
+              <PlusIcon className="size-4" />
+              New invoice
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <InvoiceFiltersBar />

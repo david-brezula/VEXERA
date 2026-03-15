@@ -1,11 +1,13 @@
 import {
   Document,
+  Image,
   Page,
   Text,
   View,
   StyleSheet,
 } from "@react-pdf/renderer"
 import type { InvoiceDetail } from "@/lib/data/invoices"
+import type { InvoiceTemplateSettings } from "@/lib/types/invoice-template"
 
 function fmtEur(n: number): string {
   return new Intl.NumberFormat("sk-SK", { style: "currency", currency: "EUR" }).format(n)
@@ -221,10 +223,72 @@ const s = StyleSheet.create({
     fontSize: 9,
     color: "#6b7280",
   },
+  // Logo
+  logo: {
+    width: 60,
+    height: 60,
+    objectFit: "contain" as const,
+  },
+  headerLeft: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 10,
+  },
+  // QR payment
+  qrSection: {
+    marginTop: 20,
+    alignItems: "center" as const,
+  },
+  qrLabel: {
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+    textTransform: "uppercase" as const,
+    letterSpacing: 1,
+    color: "#6b7280",
+    marginBottom: 6,
+  },
+  qrImage: {
+    width: 100,
+    height: 100,
+  },
 })
 
-export function InvoicePdfDocument({ invoice }: { invoice: InvoiceDetail }) {
+const FONT_MAP: Record<string, { regular: string; bold: string }> = {
+  default: { regular: "Helvetica", bold: "Helvetica-Bold" },
+  serif: { regular: "Times-Roman", bold: "Times-Bold" },
+  modern: { regular: "Courier", bold: "Courier-Bold" },
+}
+
+const LOGO_ALIGNMENT: Record<string, "flex-start" | "center" | "flex-end"> = {
+  left: "flex-start",
+  center: "center",
+  right: "flex-end",
+}
+
+export function InvoicePdfDocument({
+  invoice,
+  qrDataUrl,
+  templateSettings,
+}: {
+  invoice: InvoiceDetail
+  qrDataUrl?: string
+  templateSettings?: InvoiceTemplateSettings
+}) {
   const items = invoice.invoice_items ?? []
+  const ts = templateSettings
+
+  // Resolved fonts
+  const fontRegular = ts ? FONT_MAP[ts.font]?.regular ?? "Helvetica" : "Helvetica"
+  const fontBold = ts ? FONT_MAP[ts.font]?.bold ?? "Helvetica-Bold" : "Helvetica-Bold"
+  const accent = ts?.accentColor ?? "#111827"
+
+  // Conditionals driven by template settings (default to true when no settings)
+  const showBankDetails = ts?.showBankDetails ?? true
+  const showQrCode = ts?.showQrCode ?? true
+  const showNotes = ts?.showNotes ?? true
+  const showSignatureLines = ts?.showSignatureLines ?? true
+  const headerDirection = ts?.headerLayout === "stacked" ? "column" as const : "row" as const
+  const logoAlign = ts ? LOGO_ALIGNMENT[ts.logoPosition] ?? "flex-start" : "flex-start"
 
   // VAT breakdown
   const vatMap = new Map<number, { net: number; vat: number }>()
@@ -239,21 +303,26 @@ export function InvoicePdfDocument({ invoice }: { invoice: InvoiceDetail }) {
 
   return (
     <Document>
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={{ ...s.page, fontFamily: fontRegular }}>
         {/* Header */}
-        <View style={s.header}>
-          <View>
-            <Text style={s.title}>INVOICE</Text>
-            <Text style={s.invoiceNumber}>{invoice.invoice_number}</Text>
+        <View style={{ ...s.header, flexDirection: headerDirection }}>
+          <View style={{ ...s.headerLeft, justifyContent: logoAlign }}>
+            {invoice.organization?.logo_url && (
+              <Image src={invoice.organization.logo_url} style={s.logo} />
+            )}
+            <View>
+              <Text style={{ ...s.title, fontFamily: fontBold }}>INVOICE</Text>
+              <Text style={s.invoiceNumber}>{invoice.invoice_number}</Text>
+            </View>
           </View>
           <View style={s.headerRight}>
             <Text>
               <Text style={s.headerLabel}>Type: </Text>
-              <Text style={s.headerValue}>{invoice.invoice_type}</Text>
+              <Text style={{ ...s.headerValue, fontFamily: fontBold }}>{invoice.invoice_type}</Text>
             </Text>
             <Text>
               <Text style={s.headerLabel}>Status: </Text>
-              <Text style={s.headerValue}>{invoice.status}</Text>
+              <Text style={{ ...s.headerValue, fontFamily: fontBold }}>{invoice.status}</Text>
             </Text>
           </View>
         </View>
@@ -261,17 +330,17 @@ export function InvoicePdfDocument({ invoice }: { invoice: InvoiceDetail }) {
         {/* Supplier / Customer */}
         <View style={s.partiesRow}>
           <View style={s.partyCol}>
-            <Text style={s.partyLabel}>Supplier (Dodavatel)</Text>
-            <Text style={s.partyName}>{invoice.supplier_name}</Text>
+            <Text style={{ ...s.partyLabel, fontFamily: fontBold }}>Supplier (Dodavatel)</Text>
+            <Text style={{ ...s.partyName, fontFamily: fontBold }}>{invoice.supplier_name}</Text>
             {invoice.supplier_ico && <Text style={s.partyDetail}>ICO: {invoice.supplier_ico}</Text>}
             {invoice.supplier_dic && <Text style={s.partyDetail}>DIC: {invoice.supplier_dic}</Text>}
             {invoice.supplier_ic_dph && <Text style={s.partyDetail}>IC DPH: {invoice.supplier_ic_dph}</Text>}
             {invoice.supplier_address && <Text style={s.partyDetail}>{invoice.supplier_address}</Text>}
-            {invoice.supplier_iban && <Text style={s.partyMono}>IBAN: {invoice.supplier_iban}</Text>}
+            {showBankDetails && invoice.supplier_iban && <Text style={s.partyMono}>IBAN: {invoice.supplier_iban}</Text>}
           </View>
           <View style={s.partyCol}>
-            <Text style={s.partyLabel}>Customer (Odberatel)</Text>
-            <Text style={s.partyName}>{invoice.customer_name}</Text>
+            <Text style={{ ...s.partyLabel, fontFamily: fontBold }}>Customer (Odberatel)</Text>
+            <Text style={{ ...s.partyName, fontFamily: fontBold }}>{invoice.customer_name}</Text>
             {invoice.customer_ico && <Text style={s.partyDetail}>ICO: {invoice.customer_ico}</Text>}
             {invoice.customer_dic && <Text style={s.partyDetail}>DIC: {invoice.customer_dic}</Text>}
             {invoice.customer_ic_dph && <Text style={s.partyDetail}>IC DPH: {invoice.customer_ic_dph}</Text>}
@@ -283,39 +352,39 @@ export function InvoicePdfDocument({ invoice }: { invoice: InvoiceDetail }) {
         <View style={s.datesRow}>
           <View style={s.dateItem}>
             <Text style={s.dateLabel}>Issue date</Text>
-            <Text style={s.dateValue}>{fmtDate(invoice.issue_date)}</Text>
+            <Text style={{ ...s.dateValue, fontFamily: fontBold }}>{fmtDate(invoice.issue_date)}</Text>
           </View>
           {invoice.delivery_date && (
             <View style={s.dateItem}>
               <Text style={s.dateLabel}>Delivery date</Text>
-              <Text style={s.dateValue}>{fmtDate(invoice.delivery_date)}</Text>
+              <Text style={{ ...s.dateValue, fontFamily: fontBold }}>{fmtDate(invoice.delivery_date)}</Text>
             </View>
           )}
           <View style={s.dateItem}>
             <Text style={s.dateLabel}>Due date</Text>
-            <Text style={s.dateValue}>{fmtDate(invoice.due_date)}</Text>
+            <Text style={{ ...s.dateValue, fontFamily: fontBold }}>{fmtDate(invoice.due_date)}</Text>
           </View>
           {invoice.payment_method && (
             <View style={s.dateItem}>
               <Text style={s.dateLabel}>Payment</Text>
-              <Text style={s.dateValue}>{invoice.payment_method.replace("_", " ")}</Text>
+              <Text style={{ ...s.dateValue, fontFamily: fontBold }}>{invoice.payment_method.replace("_", " ")}</Text>
             </View>
           )}
           {invoice.variable_symbol && (
             <View style={s.dateItem}>
               <Text style={s.dateLabel}>Variable symbol</Text>
-              <Text style={s.dateValue}>{invoice.variable_symbol}</Text>
+              <Text style={{ ...s.dateValue, fontFamily: fontBold }}>{invoice.variable_symbol}</Text>
             </View>
           )}
         </View>
 
         {/* Line items table */}
-        <View style={s.tableHeader}>
-          <Text style={s.thDesc}>Description</Text>
-          <Text style={s.thQty}>Qty</Text>
-          <Text style={s.thPrice}>Unit price</Text>
-          <Text style={s.thVat}>VAT</Text>
-          <Text style={s.thTotal}>Total</Text>
+        <View style={{ ...s.tableHeader, borderBottomColor: accent }}>
+          <Text style={{ ...s.thDesc, fontFamily: fontBold }}>Description</Text>
+          <Text style={{ ...s.thQty, fontFamily: fontBold }}>Qty</Text>
+          <Text style={{ ...s.thPrice, fontFamily: fontBold }}>Unit price</Text>
+          <Text style={{ ...s.thVat, fontFamily: fontBold }}>VAT</Text>
+          <Text style={{ ...s.thTotal, fontFamily: fontBold }}>Total</Text>
         </View>
         {items.map((item, i) => (
           <View key={item.id} style={i % 2 === 0 ? s.tableRow : s.tableRowAlt}>
@@ -328,7 +397,7 @@ export function InvoicePdfDocument({ invoice }: { invoice: InvoiceDetail }) {
         ))}
 
         {/* Totals with VAT breakdown */}
-        <View style={s.totalsContainer}>
+        <View style={{ ...s.totalsContainer, borderTopColor: accent }}>
           {breakdown.length > 1 && (
             <View style={{ marginBottom: 6 }}>
               <View style={s.vatBreakdownHeader}>
@@ -355,29 +424,46 @@ export function InvoicePdfDocument({ invoice }: { invoice: InvoiceDetail }) {
               <Text style={s.totalsValue}>{fmtEur(vat)}</Text>
             </View>
           ))}
-          <View style={s.totalsFinalRow}>
-            <Text style={s.totalsFinalLabel}>Total</Text>
-            <Text style={s.totalsFinalValue}>{fmtEur(Number(invoice.total))}</Text>
+          <View style={{ ...s.totalsFinalRow, borderTopColor: accent }}>
+            <Text style={{ ...s.totalsFinalLabel, fontFamily: fontBold }}>Total</Text>
+            <Text style={{ ...s.totalsFinalValue, fontFamily: fontBold }}>{fmtEur(Number(invoice.total))}</Text>
           </View>
         </View>
 
         {/* Notes */}
-        {invoice.notes && (
+        {showNotes && invoice.notes && (
           <View style={s.notesContainer}>
-            <Text style={s.notesLabel}>Note</Text>
+            <Text style={{ ...s.notesLabel, fontFamily: fontBold }}>Note</Text>
             <Text style={s.notesText}>{invoice.notes}</Text>
           </View>
         )}
 
+        {/* PAY by square QR code */}
+        {showQrCode && qrDataUrl && (
+          <View style={s.qrSection}>
+            <Text style={{ ...s.qrLabel, fontFamily: fontBold }}>PAY by square</Text>
+            <Image src={qrDataUrl} style={s.qrImage} />
+          </View>
+        )}
+
         {/* Signature lines */}
-        <View style={s.signaturesRow}>
-          <View style={s.signatureCol}>
-            <Text style={s.signatureLabel}>Issued by (signature)</Text>
+        {showSignatureLines && (
+          <View style={s.signaturesRow}>
+            <View style={s.signatureCol}>
+              <Text style={s.signatureLabel}>Issued by (signature)</Text>
+            </View>
+            <View style={s.signatureCol}>
+              <Text style={s.signatureLabel}>Received by (signature)</Text>
+            </View>
           </View>
-          <View style={s.signatureCol}>
-            <Text style={s.signatureLabel}>Received by (signature)</Text>
+        )}
+
+        {/* Footer text */}
+        {ts?.footerText ? (
+          <View style={{ marginTop: 20, alignItems: "center" as const }}>
+            <Text style={{ fontSize: 8, color: accent }}>{ts.footerText}</Text>
           </View>
-        </View>
+        ) : null}
       </Page>
     </Document>
   )

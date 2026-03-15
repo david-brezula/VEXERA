@@ -14,10 +14,15 @@ export async function getAccountantDashboard(
   const supabase = await createClient()
 
   // 1. Get all active client organizations
+  // Get current user to find their accountant_clients links
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return emptyDashboard()
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: clientLinks, error: clientError } = await (supabase.from("accountant_clients" as any) as any)
-    .select("client_org_id, organizations!accountant_clients_client_org_id_fkey(id, name)")
-    .eq("accountant_org_id", orgId)
+  const { data: clientLinks, error: clientError } = await (supabase as any)
+    .from("accountant_clients")
+    .select("id, organization_id, organizations:organization_id(id, name)")
+    .eq("accountant_id", user.id)
     .eq("status", "active")
 
   if (clientError) {
@@ -26,13 +31,14 @@ export async function getAccountantDashboard(
   }
 
   const links = (clientLinks ?? []) as Array<{
-    client_org_id: string
+    id: string
+    organization_id: string
     organizations: { id: string; name: string } | null
   }>
 
   if (links.length === 0) return emptyDashboard()
 
-  const clientOrgIds = links.map((l) => l.client_org_id)
+  const clientOrgIds = links.map((l) => l.organization_id)
 
   // 2. Fetch document stats for all client orgs in parallel
   const [docStats, txStats, lastActivities, weeklyApproved] = await Promise.all([
@@ -46,7 +52,7 @@ export async function getAccountantDashboard(
 
   // 3. Build client summaries
   const clients: ClientSummary[] = links.map((link) => {
-    const orgId = link.client_org_id
+    const orgId = link.organization_id
     const orgName = link.organizations?.name ?? "Unknown"
 
     const total = docStats.total.get(orgId) ?? 0
@@ -69,6 +75,7 @@ export async function getAccountantDashboard(
     }
 
     return {
+      accountant_client_id: link.id,
       organization_id: orgId,
       organization_name: orgName,
       unprocessed_docs: unprocessed,

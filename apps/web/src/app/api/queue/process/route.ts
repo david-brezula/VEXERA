@@ -16,14 +16,36 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { dequeueJob, markJobComplete, markJobFailed } from "@/lib/services/queue.service"
 import type { Job } from "@/lib/services/queue.service"
+import { sendInvoiceEmailSystem } from "@/lib/services/invoice-email.service"
 
 // ─── Job Handlers Registry ──────────────────────────────────────────────────
 
 type JobHandler = (supabase: Awaited<ReturnType<typeof createClient>>, job: Job) => Promise<Record<string, unknown> | void>
 
 const jobHandlers: Record<string, JobHandler> = {
-  // Handlers will be registered here as features are implemented:
-  // "recurring_invoice": processRecurringInvoiceJob,
+  recurring_invoice: async (supabase, job) => {
+    const { action, invoiceId, recipientEmail } = job.payload as {
+      action: string
+      invoiceId: string
+      recipientEmail: string
+    }
+
+    if (action === "send_email" && invoiceId && recipientEmail) {
+      const orgId = job.organization_id
+      if (!orgId) {
+        throw new Error("recurring_invoice job missing organization_id")
+      }
+
+      const result = await sendInvoiceEmailSystem(supabase, invoiceId, recipientEmail, orgId)
+      if (result.error) {
+        throw new Error(result.error)
+      }
+
+      return { sent: true, invoiceId, recipientEmail }
+    }
+
+    throw new Error(`Unknown recurring_invoice action: ${action}`)
+  },
   // "health_check": processHealthCheckJob,
   // "ml_retrain": processMLRetrainJob,
   // "retention_check": processRetentionCheckJob,
@@ -46,7 +68,7 @@ export async function POST(request: Request) {
     const authHeader = request.headers.get("authorization")
     const expectedSecret = process.env.QUEUE_PROCESS_SECRET
 
-    if (expectedSecret && authHeader !== `Bearer ${expectedSecret}`) {
+    if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 

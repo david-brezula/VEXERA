@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import {
   Users,
   FileText,
@@ -12,11 +12,25 @@ import {
   Link2,
   Copy,
   Check,
+  MoreHorizontalIcon,
+  UserPlusIcon,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import {
   Table,
   TableBody,
@@ -25,6 +39,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { toast } from "sonner"
+import { revokeAccountantAccessAction } from "@/lib/actions/members"
 import type { AccountantDashboardData, ClientSummary } from "@vexera/types"
 
 function StatusBadge({ status }: { status: ClientSummary["status"] }) {
@@ -96,6 +112,20 @@ function ReferralCard({ code }: { code: string }) {
 
 export function AccountantDashboard({ data }: { data: AccountantDashboardData }) {
   const needsAttentionCount = data.clients.filter(c => c.status === "needs_attention").length
+  const [isPending, startTransition] = useTransition()
+
+  function handleRevokeClient(accountantClientId: string, orgName: string) {
+    if (!window.confirm(`Are you sure you want to revoke access to ${orgName}?`)) return
+    startTransition(async () => {
+      const result = await revokeAccountantAccessAction(accountantClientId)
+      if (result.error) {
+        toast.error(result.error)
+      } else {
+        toast.success(`Access to ${orgName} revoked`)
+        // Page will revalidate via server action
+      }
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -158,10 +188,29 @@ export function AccountantDashboard({ data }: { data: AccountantDashboardData })
       {/* Client list */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Client Overview</CardTitle>
-          <CardDescription className="text-xs">
-            Sorted by urgency — clients needing attention appear first
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Client Overview</CardTitle>
+              <CardDescription className="text-xs">
+                Sorted by urgency — clients needing attention appear first
+              </CardDescription>
+            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0}>
+                    <Button variant="outline" size="sm" disabled className="gap-1.5">
+                      <UserPlusIcon className="h-4 w-4" />
+                      Add Client
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Coming soon — ask your client to invite you from their Members page</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         </CardHeader>
         {data.clients.length === 0 ? (
           <CardContent>
@@ -231,11 +280,35 @@ export function AccountantDashboard({ data }: { data: AccountantDashboardData })
                     {formatDaysAgo(client.days_since_activity)}
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/inbox`}>
-                        View
-                      </Link>
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          disabled={isPending}
+                        >
+                          <MoreHorizontalIcon className="h-4 w-4" />
+                          <span className="sr-only">Actions</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <Link href="/inbox">View</Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() =>
+                            handleRevokeClient(
+                              client.accountant_client_id,
+                              client.organization_name
+                            )
+                          }
+                        >
+                          Revoke Access
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}

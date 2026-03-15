@@ -7,6 +7,7 @@ import { ArrowLeft, Download, Pencil, Trash2, X, Check, ChevronDown, FileText, E
 import { toast } from "sonner"
 
 import { DocumentStatusBadge } from "./document-status-badge"
+import { OcrExtractionReview } from "./ocr-extraction-review"
 import {
   updateDocumentStatusAction,
   updateDocumentMetadataAction,
@@ -39,8 +40,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils"
+import { CategorySuggestions } from "@/components/shared/category-suggestions"
 import type { DocumentDetail, DocumentComment, AuditLogEntry } from "@/lib/data/documents"
-import type { DocumentStatus } from "@vexera/types"
+import type { DocumentStatus, OcrExtractedFields } from "@vexera/types"
 
 // ─── Allowed status transitions ──────────────────────────────────────────────
 
@@ -550,6 +552,7 @@ export function DocumentDetailClient({ document, comments, auditLogs }: Props) {
   const [isEditingMetadata, setIsEditingMetadata] = useState(false)
   const [isStatusPending, startStatusTransition] = useTransition()
   const [isDeletePending, startDeleteTransition] = useTransition()
+  const [showRawJson, setShowRawJson] = useState(false)
 
   const allowedNextStatuses = ALLOWED_TRANSITIONS[currentStatus] ?? []
 
@@ -645,48 +648,71 @@ export function DocumentDetailClient({ document, comments, auditLogs }: Props) {
             </CardContent>
           </Card>
 
-          {/* Extracted fields card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold">Extracted fields</CardTitle>
-                {!isEditingMetadata && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsEditingMetadata(true)}
-                    className="h-7 gap-1 text-xs"
-                  >
-                    <Pencil className="h-3 w-3" />
-                    Edit
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              {isEditingMetadata ? (
-                <MetadataEditForm
-                  document={document}
-                  onCancel={() => setIsEditingMetadata(false)}
-                  onSaved={() => setIsEditingMetadata(false)}
-                />
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  <MetadataField label="Supplier" value={document.supplier_name ?? "—"} />
-                  <MetadataField label="Doc number" value={document.document_number ?? "—"} />
-                  <MetadataField label="Issue date" value={formatDate(document.issue_date)} />
-                  <MetadataField label="Due date" value={formatDate(document.due_date)} />
-                  <MetadataField label="Total" value={formatEur(document.total_amount)} />
-                  <MetadataField label="VAT amount" value={formatEur(document.vat_amount)} />
-                  <MetadataField
-                    label="VAT rate"
-                    value={document.vat_rate != null ? `${document.vat_rate}%` : "—"}
-                  />
-                  <MetadataField label="Category" value={document.category ?? "—"} />
+          {/* OCR Extraction Review — shown when OCR is complete */}
+          {document.ocr_status === "done" && document.ocr_data ? (
+            <OcrExtractionReview
+              documentId={document.id}
+              ocrData={document.ocr_data as unknown as OcrExtractedFields}
+              onInvoiceCreated={(invoiceId) => {
+                toast.success("Invoice created — redirecting...")
+                router.push(`/invoices/${invoiceId}`)
+              }}
+            />
+          ) : (
+            /* Extracted fields card — shown when OCR is not done */
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-semibold">Extracted fields</CardTitle>
+                  {!isEditingMetadata && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsEditingMetadata(true)}
+                      className="h-7 gap-1 text-xs"
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Edit
+                    </Button>
+                  )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                {isEditingMetadata ? (
+                  <MetadataEditForm
+                    document={document}
+                    onCancel={() => setIsEditingMetadata(false)}
+                    onSaved={() => setIsEditingMetadata(false)}
+                  />
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <MetadataField label="Supplier" value={document.supplier_name ?? "—"} />
+                    <MetadataField label="Doc number" value={document.document_number ?? "—"} />
+                    <MetadataField label="Issue date" value={formatDate(document.issue_date)} />
+                    <MetadataField label="Due date" value={formatDate(document.due_date)} />
+                    <MetadataField label="Total" value={formatEur(document.total_amount)} />
+                    <MetadataField label="VAT amount" value={formatEur(document.vat_amount)} />
+                    <MetadataField
+                      label="VAT rate"
+                      value={document.vat_rate != null ? `${document.vat_rate}%` : "—"}
+                    />
+                    <MetadataField label="Category" value={document.category ?? "—"} />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Category suggestions — shown when OCR is done but no category assigned */}
+          {!document.category && document.ocr_status === "done" && (
+            <CategorySuggestions
+              documentId={document.id}
+              supplierName={document.supplier_name}
+              totalAmount={document.total_amount}
+              description={document.name}
+              onAccepted={() => router.refresh()}
+            />
+          )}
 
           {/* Danger zone */}
           <Separator />
@@ -758,7 +784,32 @@ export function DocumentDetailClient({ document, comments, auditLogs }: Props) {
         </TabsContent>
 
         <TabsContent value="ocr">
-          <OcrDataTab ocrData={document.ocr_data} />
+          <div className="flex flex-col gap-3 pt-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-muted-foreground">
+                {document.ocr_status === "done" ? "OCR extraction complete" : "OCR data"}
+              </span>
+              {document.ocr_data && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRawJson((prev) => !prev)}
+                >
+                  {showRawJson ? "Hide Raw JSON" : "Show Raw JSON"}
+                </Button>
+              )}
+            </div>
+            {showRawJson && document.ocr_data && (
+              <pre className="rounded-lg bg-muted p-4 text-xs font-mono overflow-auto max-h-96 whitespace-pre-wrap break-words">
+                {JSON.stringify(document.ocr_data, null, 2)}
+              </pre>
+            )}
+            {!document.ocr_data && (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No OCR data available for this document.
+              </p>
+            )}
+          </div>
         </TabsContent>
       </Tabs>
     </div>

@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { BarChart3, Users, FolderKanban, Clock } from "lucide-react"
+import { BarChart3, Users, FolderKanban, Clock, TrendingUp } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export const metadata = {
@@ -30,6 +30,12 @@ const reportTypes = [
     description: "Stav pripravenosti klientov pred daňovými termínmi.",
     href: "/reports/remaining-work",
     icon: Clock,
+  },
+  {
+    title: "Cashflow Forecast",
+    description: "90-day cashflow projection with scenario analysis and risk detection.",
+    href: "/reports/cashflow",
+    icon: TrendingUp,
   },
 ]
 

@@ -12,6 +12,7 @@ interface CreateRuleInput {
   is_active?: boolean
   priority?: number
   target_entity: RuleTargetEntity
+  logic_operator?: 'AND' | 'OR'
   conditions: RuleCondition[]
   actions: RuleAction[]
 }
@@ -23,6 +24,7 @@ interface UpdateRuleInput {
   is_active?: boolean
   priority?: number
   target_entity?: RuleTargetEntity
+  logic_operator?: 'AND' | 'OR'
   conditions?: RuleCondition[]
   actions?: RuleAction[]
 }

@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState, useTransition } from "react"
 import { useForm, useFieldArray, type Resolver, type Control } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { PlusIcon, TrashIcon } from "lucide-react"
+import { PlusIcon, TrashIcon, FlaskConicalIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -29,8 +29,19 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { ruleFormSchema, type RuleFormValues } from "@/lib/validations/rule.schema"
 import { useCreateRule, useUpdateRule } from "@/hooks/use-rules"
+import { getAccountOptionsAction, getCategoryOptionsAction, testRuleAction } from "@/lib/actions/rules"
 import type { Rule } from "@vexera/types"
 
 // ─── Options ─────────────────────────────────────────────────────────────────
@@ -71,6 +82,93 @@ interface RuleFormDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
+// ─── Action value field ──────────────────────────────────────────────────────
+
+function ActionValueField({
+  ctrl,
+  index,
+  actionType,
+  accountOptions,
+  categoryOptions,
+}: {
+  ctrl: Control<RuleFormValues, any, any>
+  index: number
+  actionType: string
+  accountOptions: { value: string; label: string }[]
+  categoryOptions: string[]
+}) {
+  if (actionType === "set_account" && accountOptions.length > 0) {
+    return (
+      <FormField
+        control={ctrl}
+        name={`actions.${index}.value`}
+        render={({ field }) => (
+          <FormItem>
+            <Select value={field.value} onValueChange={field.onChange}>
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select account" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                {accountOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    )
+  }
+
+  if (actionType === "set_category" && categoryOptions.length > 0) {
+    return (
+      <FormField
+        control={ctrl}
+        name={`actions.${index}.value`}
+        render={({ field }) => (
+          <FormItem>
+            <Select value={field.value} onValueChange={field.onChange}>
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                {categoryOptions.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    )
+  }
+
+  return (
+    <FormField
+      control={ctrl}
+      name={`actions.${index}.value`}
+      render={({ field }) => (
+        <FormItem>
+          <FormControl>
+            <Input placeholder="Value" {...field} />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function RuleFormDialog({ rule, open, onOpenChange }: RuleFormDialogProps) {
@@ -78,6 +176,17 @@ export function RuleFormDialog({ rule, open, onOpenChange }: RuleFormDialogProps
   const createRule = useCreateRule()
   const updateRule = useUpdateRule()
   const isPending = createRule.isPending || updateRule.isPending
+
+  // Dropdown options state
+  const [accountOptions, setAccountOptions] = useState<{ value: string; label: string }[]>([])
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([])
+
+  // Test rule state
+  const [testPending, startTestTransition] = useTransition()
+  const [testResult, setTestResult] = useState<{
+    matches: { id: string; description: string; amount: number | null; date: string | null; actions: Record<string, string> }[]
+    total: number
+  } | null>(null)
 
   const form = useForm<RuleFormValues>({
     // Cast resolver to avoid @hookform/resolvers v5 + Zod v4 generic type mismatch
@@ -87,6 +196,7 @@ export function RuleFormDialog({ rule, open, onOpenChange }: RuleFormDialogProps
       description: rule?.description ?? "",
       target_entity: rule?.target_entity ?? "document",
       priority: rule?.priority ?? 100,
+      logic_operator: rule?.logic_operator ?? "AND",
       // RuleCondition.value is string | number; form schema expects string
       conditions: rule?.conditions?.map((c) => ({ ...c, value: String(c.value) })) ?? [{ field: "", operator: "contains" as const, value: "" }],
       actions: rule?.actions ?? [{ type: "set_category" as const, value: "" }],
@@ -101,6 +211,17 @@ export function RuleFormDialog({ rule, open, onOpenChange }: RuleFormDialogProps
   const targetEntity = form.watch("target_entity")
   const fieldOptions = targetEntity === "document" ? DOCUMENT_FIELD_OPTIONS : TRANSACTION_FIELD_OPTIONS
 
+  // Watch action types for dropdown rendering
+  const watchedActions = form.watch("actions")
+
+  // Load dropdown options on mount
+  useEffect(() => {
+    if (open) {
+      getAccountOptionsAction().then(setAccountOptions).catch(() => setAccountOptions([]))
+      getCategoryOptionsAction().then(setCategoryOptions).catch(() => setCategoryOptions([]))
+    }
+  }, [open])
+
   // Reset form when rule changes
   useEffect(() => {
     if (open) {
@@ -109,9 +230,11 @@ export function RuleFormDialog({ rule, open, onOpenChange }: RuleFormDialogProps
         description: rule?.description ?? "",
         target_entity: rule?.target_entity ?? "document",
         priority: rule?.priority ?? 100,
+        logic_operator: rule?.logic_operator ?? "AND",
         conditions: rule?.conditions?.map((c) => ({ ...c, value: String(c.value) })) ?? [{ field: "", operator: "contains" as const, value: "" }],
         actions: rule?.actions ?? [{ type: "set_category" as const, value: "" }],
       })
+      setTestResult(null)
     }
   }, [open, rule, form])
 
@@ -122,6 +245,33 @@ export function RuleFormDialog({ rule, open, onOpenChange }: RuleFormDialogProps
       await createRule.mutateAsync(values)
     }
     onOpenChange(false)
+  }
+
+  function handleTestRule() {
+    const values = form.getValues()
+    startTestTransition(async () => {
+      const result = await testRuleAction({
+        target_entity: values.target_entity,
+        conditions: values.conditions,
+        logic_operator: values.logic_operator ?? "AND",
+        actions: values.actions,
+      })
+      setTestResult(result)
+    })
+  }
+
+  function formatAmount(amount: number | null): string {
+    if (amount == null) return "—"
+    return new Intl.NumberFormat("en-US", { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)
+  }
+
+  function formatDate(date: string | null): string {
+    if (!date) return "—"
+    try {
+      return new Date(date).toLocaleDateString()
+    } catch {
+      return date
+    }
   }
 
   return (
@@ -202,6 +352,38 @@ export function RuleFormDialog({ rule, open, onOpenChange }: RuleFormDialogProps
                   <PlusIcon className="size-3 mr-1" /> Add
                 </Button>
               </div>
+
+              {/* AND / OR toggle */}
+              <FormField
+                control={ctrl}
+                name="logic_operator"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <RadioGroup
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        className="flex items-center gap-4"
+                      >
+                        <div className="flex items-center gap-2">
+                          <RadioGroupItem value="AND" id="logic-and" />
+                          <Label htmlFor="logic-and" className="font-normal cursor-pointer">
+                            Match ALL conditions (AND)
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <RadioGroupItem value="OR" id="logic-or" />
+                          <Label htmlFor="logic-or" className="font-normal cursor-pointer">
+                            Match ANY condition (OR)
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               {conditionsArray.fields.map((condField, i) => (
                 <div key={condField.id} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-start">
                   <FormField
@@ -314,17 +496,12 @@ export function RuleFormDialog({ rule, open, onOpenChange }: RuleFormDialogProps
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={ctrl}
-                    name={`actions.${i}.value`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Input placeholder="Value" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                  <ActionValueField
+                    ctrl={ctrl}
+                    index={i}
+                    actionType={watchedActions?.[i]?.type ?? ""}
+                    accountOptions={accountOptions}
+                    categoryOptions={categoryOptions}
                   />
                   <Button
                     type="button"
@@ -340,12 +517,62 @@ export function RuleFormDialog({ rule, open, onOpenChange }: RuleFormDialogProps
               ))}
             </div>
 
+            {/* Test Rule */}
+            <div className="space-y-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={testPending}
+                onClick={handleTestRule}
+              >
+                <FlaskConicalIcon className="size-3 mr-1" />
+                {testPending ? "Testing..." : "Test Rule"}
+              </Button>
+
+              {testResult && (
+                <div className="rounded-md border p-3 space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    {testResult.total} match{testResult.total !== 1 ? "es" : ""} found (out of 100 scanned)
+                  </p>
+                  {testResult.matches.length > 0 && (
+                    <div className="max-h-48 overflow-y-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Description</TableHead>
+                            <TableHead className="text-right">Amount</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Actions to Apply</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {testResult.matches.slice(0, 20).map((m) => (
+                            <TableRow key={m.id}>
+                              <TableCell className="max-w-[200px] truncate">{m.description}</TableCell>
+                              <TableCell className="text-right">{formatAmount(m.amount)}</TableCell>
+                              <TableCell>{formatDate(m.date)}</TableCell>
+                              <TableCell className="text-xs">
+                                {Object.entries(m.actions).map(([k, v]) => (
+                                  <span key={k} className="mr-2">{k}={v}</span>
+                                ))}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={isPending}>
-                {isPending ? "Saving…" : isEdit ? "Save Changes" : "Create Rule"}
+                {isPending ? "Saving..." : isEdit ? "Save Changes" : "Create Rule"}
               </Button>
             </DialogFooter>
           </form>

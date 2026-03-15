@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server"
 import { renderToBuffer } from "@react-pdf/renderer"
 import { createElement } from "react"
+import QRCode from "qrcode"
 import { getInvoice } from "@/lib/data/invoices"
 import { InvoicePdfDocument } from "@/components/invoices/invoice-pdf"
+import { encodePayBySquare } from "@/lib/pay-by-square"
+import { getInvoiceTemplateSettingsAction } from "@/lib/actions/invoice-template"
+import type { InvoiceTemplateSettings } from "@/lib/types/invoice-template"
 
 export async function GET(
   _request: Request,
@@ -14,7 +18,34 @@ export async function GET(
     if (!invoice) {
       return NextResponse.json({ error: "Invoice not found" }, { status: 404 })
     }
-    const element = createElement(InvoicePdfDocument, { invoice })
+    // Pre-compute PAY by square QR code if IBAN is available
+    let qrDataUrl: string | undefined
+    const iban = invoice.bank_iban || invoice.supplier_iban
+    if (iban) {
+      const payData = encodePayBySquare({
+        amount: Number(invoice.total),
+        currencyCode: invoice.currency || "EUR",
+        iban,
+        variableSymbol: invoice.variable_symbol ?? undefined,
+        constantSymbol: invoice.constant_symbol ?? undefined,
+        specificSymbol: invoice.specific_symbol ?? undefined,
+        beneficiaryName: invoice.supplier_name ?? undefined,
+        dueDate: invoice.due_date
+          ? invoice.due_date.replace(/-/g, "")
+          : undefined,
+      })
+      qrDataUrl = await QRCode.toDataURL(payData, { width: 150, margin: 1 })
+    }
+
+    // Fetch template settings for the organization
+    let templateSettings: InvoiceTemplateSettings | undefined
+    try {
+      templateSettings = await getInvoiceTemplateSettingsAction()
+    } catch {
+      // Continue without template settings if fetch fails
+    }
+
+    const element = createElement(InvoicePdfDocument, { invoice, qrDataUrl, templateSettings })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const buffer = await renderToBuffer(element as any)
     const filename = `invoice-${invoice.invoice_number}.pdf`

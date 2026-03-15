@@ -1,11 +1,26 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { createElement } from "react"
+import { renderToBuffer } from "@react-pdf/renderer"
+import { Resend } from "resend"
 import { createClient } from "@/lib/supabase/server"
 import { getActiveOrgId } from "@/lib/data/org"
+import { getInvoice } from "@/lib/data/invoices"
 import { calculateVatAmount, calculateGrossAmount } from "@vexera/utils"
 import type { InvoiceFormValues } from "@/lib/validations/invoice.schema"
 import type { InvoiceStatus, InvoiceType } from "@vexera/types"
+import QRCode from "qrcode"
+import { InvoicePdfDocument } from "@/components/invoices/invoice-pdf"
+import { createTracking, getTrackingPixelHtml } from "@/lib/services/email-tracking.service"
+import { encodePayBySquare } from "@/lib/pay-by-square"
+import { postInvoiceToLedger } from "./invoice-posting"
+import { getInvoiceTemplateSettingsAction } from "./invoice-template"
+import type { InvoiceTemplateSettings } from "@/lib/types/invoice-template"
+
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY)
+}
 
 // ─── Private helpers ──────────────────────────────────────────────────────────
 
@@ -205,12 +220,29 @@ export async function createInvoiceAction(
       new_data: { invoice_number, status: "draft", total },
     })
 
+    // Auto-create draft journal entry for ledger
+    try {
+      await postInvoiceToLedger(supabase, orgId, user.id, {
+        id: invoice.id,
+        invoice_number,
+        invoice_type: values.invoice_type,
+        issue_date: values.issue_date,
+        subtotal: Math.round(subtotal * 100) / 100,
+        vat_amount: Math.round(vat_amount * 100) / 100,
+        total: Math.round(total * 100) / 100,
+      })
+    } catch (e) {
+      // Don't fail invoice creation if ledger posting fails
+      console.error("Failed to create ledger entry for invoice:", e)
+    }
+
     if ((values as any).contact_id) {
       await updateContactStats(supabase, (values as any).contact_id, total)
     }
     await updateProductStats(supabase, values.items)
 
     revalidatePath("/invoices")
+    revalidatePath("/ledger")
     revalidatePath("/")
     return { id: invoice.id }
   } catch (err) {
@@ -517,34 +549,102 @@ export async function sendInvoiceEmailAction(
     } = await supabase.auth.getUser()
     if (!user) return { error: "Not authenticated" }
 
-    const { data: invoice, error: fetchError } = await supabase
-      .from("invoices")
-      .select("id, invoice_number, status")
-      .eq("id", invoiceId)
-      .eq("organization_id", orgId)
-      .is("deleted_at", null)
-      .single()
+    // 1. Fetch full invoice with all joins
+    const invoice = await getInvoice(invoiceId)
+    if (!invoice) return { error: "Invoice not found" }
 
-    if (fetchError || !invoice) return { error: "Invoice not found" }
+    // 2. Pre-compute PAY by square QR code if IBAN is available
+    let qrDataUrl: string | undefined
+    const iban = invoice.bank_iban || invoice.supplier_iban
+    if (iban) {
+      const payData = encodePayBySquare({
+        amount: Number(invoice.total),
+        currencyCode: invoice.currency || "EUR",
+        iban,
+        variableSymbol: invoice.variable_symbol ?? undefined,
+        constantSymbol: invoice.constant_symbol ?? undefined,
+        specificSymbol: invoice.specific_symbol ?? undefined,
+        beneficiaryName: invoice.supplier_name ?? undefined,
+        dueDate: invoice.due_date
+          ? invoice.due_date.replace(/-/g, "")
+          : undefined,
+      })
+      qrDataUrl = await QRCode.toDataURL(payData, { width: 150, margin: 1 })
+    }
 
-    // TODO: Generate PDF and send via transactional email service (Resend/Postmark)
+    // 3. Fetch template settings + generate PDF buffer
+    let templateSettings: InvoiceTemplateSettings | undefined
+    try {
+      templateSettings = await getInvoiceTemplateSettingsAction()
+    } catch {
+      // Continue without template settings if fetch fails
+    }
 
+    const element = createElement(InvoicePdfDocument, { invoice, qrDataUrl, templateSettings })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase.from("email_tracking" as any) as any).insert({
-      organization_id: orgId,
-      invoice_id: invoiceId,
-      recipient_email: recipientEmail,
-      subject: `Invoice ${invoice.invoice_number}`,
-      status: "pending",
+    const pdfBuffer = await renderToBuffer(element as any)
+
+    // 4. Create email tracking record
+    const subject = `Invoice ${invoice.invoice_number}`
+    const tracking = await createTracking(supabase, orgId, invoiceId, recipientEmail, subject)
+    const trackingPixelHtml = tracking
+      ? getTrackingPixelHtml(tracking.trackingPixelId)
+      : ""
+
+    // 5. Build HTML email body with inline invoice summary
+    const html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+  <h2>Invoice ${invoice.invoice_number}</h2>
+  <table>
+    <tr><td>From:</td><td>${invoice.supplier_name}</td></tr>
+    <tr><td>To:</td><td>${invoice.customer_name}</td></tr>
+    <tr><td>Issue Date:</td><td>${invoice.issue_date}</td></tr>
+    <tr><td>Due Date:</td><td>${invoice.due_date}</td></tr>
+    <tr><td>Total:</td><td>${invoice.total} ${invoice.currency ?? "EUR"}</td></tr>
+  </table>
+  <h3>Payment Details</h3>
+  <p>IBAN: ${invoice.bank_iban ?? invoice.supplier_iban ?? "N/A"}<br>Variable Symbol: ${invoice.variable_symbol ?? "N/A"}</p>
+  <p>The full invoice is attached as PDF.</p>
+  ${trackingPixelHtml}
+</div>`
+
+    // 6. Send via Resend with PDF attachment
+    const { data: emailResult, error: emailError } = await getResend().emails.send({
+      from: "VEXERA <noreply@vexera.sk>",
+      to: recipientEmail,
+      subject,
+      html,
+      attachments: [
+        {
+          filename: `invoice-${invoice.invoice_number}.pdf`,
+          content: Buffer.from(pdfBuffer).toString("base64"),
+        },
+      ],
     })
 
+    if (emailError) {
+      console.error("[sendInvoiceEmailAction] Resend error:", emailError.message)
+      return { error: `Failed to send email: ${emailError.message}` }
+    }
+
+    // 7. Update tracking record with Resend email ID
+    if (tracking && emailResult?.id) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.from("email_tracking" as any) as any)
+        .update({ resend_id: emailResult.id })
+        .eq("id", tracking.trackingId)
+    }
+
+    // 8. Create audit log entry
     await supabase.from("audit_logs").insert({
       organization_id: orgId,
       user_id: user.id,
-      action: "INVOICE_EMAIL_QUEUED",
+      action: "INVOICE_EMAIL_SENT",
       entity_type: "invoice",
       entity_id: invoiceId,
-      new_data: { recipient_email: recipientEmail },
+      new_data: {
+        recipient_email: recipientEmail,
+        resend_id: emailResult?.id ?? null,
+      },
     })
 
     revalidatePath(`/invoices/${invoiceId}`)

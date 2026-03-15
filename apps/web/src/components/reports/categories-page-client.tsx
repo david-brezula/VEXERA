@@ -1,23 +1,94 @@
 "use client"
 
-import { useState } from "react"
-import { ArrowLeft } from "lucide-react"
+import { useState, useMemo, useCallback, useTransition } from "react"
+import { ArrowLeft, Download, RefreshCw, Table } from "lucide-react"
 import Link from "next/link"
 
 import { useCategoryReport } from "@/hooks/use-reports"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 import { PeriodSelector, periodOptions } from "./period-selector"
 import { CategoryTable } from "./category-table"
+import { CategoryBarChart } from "@/components/charts/category-bar-chart"
+import {
+  exportCategoryReportPdfAction,
+  exportCategoryReportExcelAction,
+} from "@/lib/actions/report-export"
+import { formatRelativeTime } from "@/lib/utils/format-relative-time"
 
 export function CategoriesPageClient() {
   const [periodKey, setPeriodKey] = useState("current_quarter")
+  const [activeTab, setActiveTab] = useState<"expenses" | "revenue">("expenses")
+  const [isComparing, setIsComparing] = useState(false)
+  const [isPdfExporting, startPdfTransition] = useTransition()
+  const [isExcelExporting, startExcelTransition] = useTransition()
   const period = periodOptions.find((p) => p.value === periodKey) ?? periodOptions[2]
 
-  const { data: report, isLoading } = useCategoryReport({
+  // Calculate previous period by shifting from/to back by the period length
+  const comparisonPeriod = useMemo(() => {
+    const fromDate = new Date(period.from)
+    const toDate = new Date(period.to)
+    const durationMs = toDate.getTime() - fromDate.getTime() + 86_400_000 // inclusive
+    const prevTo = new Date(fromDate.getTime() - 86_400_000) // day before current from
+    const prevFrom = new Date(prevTo.getTime() - durationMs + 86_400_000)
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    return { from: fmt(prevFrom), to: fmt(prevTo) }
+  }, [period.from, period.to])
+
+  const { data: report, isLoading, isFetching, cached, generatedAt, refresh } = useCategoryReport({
     from: period.from,
     to: period.to,
   })
+
+  const { data: comparisonReport } = useCategoryReport({
+    from: isComparing ? comparisonPeriod.from : "",
+    to: isComparing ? comparisonPeriod.to : "",
+  })
+
+  const chartData = useMemo(() => {
+    if (!report) return []
+    const rows = activeTab === "expenses" ? report.expensesByCategory : report.revenueByCategory
+    return rows.map((r) => ({ category: r.category, totalAmount: r.totalAmount }))
+  }, [report, activeTab])
+
+  const comparisonChartData = useMemo(() => {
+    if (!comparisonReport || !isComparing) return undefined
+    const rows = activeTab === "expenses" ? comparisonReport.expensesByCategory : comparisonReport.revenueByCategory
+    return rows.map((r) => ({ category: r.category, totalAmount: r.totalAmount }))
+  }, [comparisonReport, isComparing, activeTab])
+
+  const handleCompareToggle = useCallback((checked: boolean) => {
+    setIsComparing(checked)
+  }, [])
+
+  const handlePdfExport = useCallback(() => {
+    startPdfTransition(async () => {
+      const result = await exportCategoryReportPdfAction(period.from, period.to)
+      if ("error" in result) return
+      const blob = new Blob([result.html], { type: "text/html;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      window.open(url, "_blank")
+    })
+  }, [period.from, period.to])
+
+  const handleExcelExport = useCallback(() => {
+    startExcelTransition(async () => {
+      const result = await exportCategoryReportExcelAction(period.from, period.to)
+      if ("error" in result) return
+      const bytes = Uint8Array.from(atob(result.base64), (c) => c.charCodeAt(0))
+      const blob = new Blob([bytes], { type: "text/csv;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = result.filename
+      a.click()
+      URL.revokeObjectURL(url)
+    })
+  }, [period.from, period.to])
 
   return (
     <>
@@ -26,6 +97,40 @@ export function CategoriesPageClient() {
           <ArrowLeft className="size-5" />
         </Link>
         <PeriodSelector value={periodKey} onValueChange={setPeriodKey} />
+
+        <div className="flex items-center gap-2 ml-auto">
+          {generatedAt && (
+            <span className="text-xs text-muted-foreground">
+              {formatRelativeTime(generatedAt)}
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-8"
+            onClick={refresh}
+            disabled={isFetching}
+            title="Obnoviť dáta"
+          >
+            <RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />
+          </Button>
+          <Button variant="outline" size="sm" onClick={handlePdfExport} disabled={isPdfExporting}>
+            <Download className="size-4 mr-1" />
+            {isPdfExporting ? "..." : "PDF"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExcelExport} disabled={isExcelExporting}>
+            <Table className="size-4 mr-1" />
+            {isExcelExporting ? "..." : "Excel"}
+          </Button>
+          <Switch
+            id="compare-toggle"
+            checked={isComparing}
+            onCheckedChange={handleCompareToggle}
+          />
+          <Label htmlFor="compare-toggle" className="text-sm cursor-pointer">
+            Porovnať s predchádzajúcim obdobím
+          </Label>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -64,8 +169,26 @@ export function CategoriesPageClient() {
         </div>
       )}
 
+      {/* Category bar chart */}
+      {report && chartData.length > 0 && (
+        <Card className="mt-4">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Top kategórie ({activeTab === "expenses" ? "Náklady" : "Výnosy"})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CategoryBarChart
+              data={chartData}
+              type={activeTab}
+              comparisonData={comparisonChartData}
+            />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Category tables */}
-      <Tabs defaultValue="expenses">
+      <Tabs defaultValue="expenses" onValueChange={(v) => setActiveTab(v as "expenses" | "revenue")}>
         <TabsList>
           <TabsTrigger value="expenses">Náklady</TabsTrigger>
           <TabsTrigger value="revenue">Výnosy</TabsTrigger>
@@ -79,6 +202,7 @@ export function CategoriesPageClient() {
               rows={report?.expensesByCategory ?? []}
               total={report?.totalExpenses ?? 0}
               currency={report?.currency}
+              comparisonRows={isComparing ? comparisonReport?.expensesByCategory : undefined}
             />
           )}
         </TabsContent>
@@ -91,6 +215,7 @@ export function CategoriesPageClient() {
               rows={report?.revenueByCategory ?? []}
               total={report?.totalRevenue ?? 0}
               currency={report?.currency}
+              comparisonRows={isComparing ? comparisonReport?.revenueByCategory : undefined}
             />
           )}
         </TabsContent>

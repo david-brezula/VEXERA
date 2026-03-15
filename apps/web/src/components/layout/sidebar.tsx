@@ -13,15 +13,27 @@ import {
   Download,
   Inbox,
   Users,
+  Receipt,
+  Calculator,
+  Palette,
+  MessageSquare,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { OrgSwitcher } from "./org-switcher"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { BankPatternBadge } from "./bank-pattern-badge"
 
 // ─── Nav structure ────────────────────────────────────────────────────────────
 
-const navGroups = [
+interface NavItemDef {
+  href: string
+  label: string
+  icon: React.ElementType
+  badge?: React.ReactNode
+}
+
+const navGroups: { label: string; items: NavItemDef[] }[] = [
   {
     label: "Main",
     items: [
@@ -34,7 +46,7 @@ const navGroups = [
     items: [
       { href: "/invoices", label: "Invoices", icon: FileText },
       { href: "/documents", label: "Documents", icon: FolderOpen },
-      { href: "/bank", label: "Bank", icon: Landmark },
+      { href: "/bank", label: "Bank", icon: Landmark, badge: <BankPatternBadge /> },
     ],
   },
   {
@@ -42,6 +54,14 @@ const navGroups = [
     items: [
       { href: "/rules", label: "Rules", icon: Zap },
       { href: "/export", label: "Export", icon: Download },
+      { href: "/chat", label: "AI Assistant", icon: MessageSquare },
+    ],
+  },
+  {
+    label: "Tax",
+    items: [
+      { href: "/tax/vat", label: "VAT Returns", icon: Receipt },
+      { href: "/tax/income", label: "Income Tax", icon: Calculator },
     ],
   },
   {
@@ -55,6 +75,7 @@ const navGroups = [
 
 const bottomItems = [
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/settings/invoice-template", label: "Invoice Template", icon: Palette },
 ]
 
 // ─── Logo mark ────────────────────────────────────────────────────────────────
@@ -94,11 +115,13 @@ function NavItem({
   label,
   icon: Icon,
   isActive,
+  badge,
 }: {
   href: string
   label: string
   icon: React.ElementType
   isActive: boolean
+  badge?: React.ReactNode
 }) {
   return (
     <Link
@@ -112,6 +135,7 @@ function NavItem({
     >
       <Icon className="h-4 w-4 shrink-0" />
       {label}
+      {badge && <span className="ml-auto">{badge}</span>}
     </Link>
   )
 }
@@ -153,6 +177,7 @@ export function Sidebar() {
                     label={item.label}
                     icon={item.icon}
                     isActive={isActive(item.href)}
+                    badge={item.badge}
                   />
                 ))}
               </div>

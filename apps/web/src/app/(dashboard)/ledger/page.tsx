@@ -3,11 +3,12 @@ import { BookOpen } from "lucide-react"
 
 import { getActiveOrgId } from "@/lib/data/org"
 import {
-  getLedgerEntries,
+  getJournalEntries,
   getChartOfAccounts,
   getAccountBalances,
   getLedgerSummary,
 } from "@/lib/data/ledger"
+import { getFiscalPeriods } from "@/lib/data/fiscal-periods"
 import { LedgerClient } from "@/components/ledger/ledger-client"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -15,12 +16,16 @@ import { Skeleton } from "@/components/ui/skeleton"
 export const metadata = { title: "Ledger | Vexera" }
 
 async function LedgerContent({ page }: { page: number }) {
-  const [entriesResult, accounts, balances, summary] = await Promise.all([
-    getLedgerEntries(undefined, { page }),
-    getChartOfAccounts(),
-    getAccountBalances(),
-    getLedgerSummary(),
-  ])
+  const currentYear = new Date().getFullYear()
+
+  const [entriesResult, accounts, balances, summary, fiscalPeriods] =
+    await Promise.all([
+      getJournalEntries(undefined, { page }),
+      getChartOfAccounts(),
+      getAccountBalances(),
+      getLedgerSummary(),
+      getFiscalPeriods(currentYear),
+    ])
 
   return (
     <>
@@ -29,6 +34,7 @@ async function LedgerContent({ page }: { page: number }) {
         accounts={accounts}
         balances={balances}
         summary={summary}
+        fiscalPeriods={fiscalPeriods}
       />
       <PaginationControls page={entriesResult.page} totalPages={entriesResult.totalPages} total={entriesResult.total} />
     </>
