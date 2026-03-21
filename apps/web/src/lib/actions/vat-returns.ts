@@ -9,6 +9,27 @@ export async function computeVatReturnAction(year: number, month: number) {
   const [supabase, orgId] = await Promise.all([createClient(), getActiveOrgId()])
   if (!orgId) return { error: "No active organization" }
 
+  // Check if org is DPH registered (freelancer or company profile)
+  const { data: freelancerProfile } = await (supabase as any)
+    .from("freelancer_profiles")
+    .select("registered_dph")
+    .eq("organization_id", orgId)
+    .maybeSingle()
+
+  if (freelancerProfile && !freelancerProfile.registered_dph) {
+    return { error: "Organizácia nie je platcom DPH. Výkaz DPH nie je možné vytvoriť." }
+  }
+
+  const { data: companyProfile } = await (supabase as any)
+    .from("company_profiles")
+    .select("dph_status")
+    .eq("organization_id", orgId)
+    .maybeSingle()
+
+  if (companyProfile && companyProfile.dph_status === "neplatca") {
+    return { error: "Organizácia nie je platcom DPH. Výkaz DPH nie je možné vytvoriť." }
+  }
+
   try {
     const result = await calculateVatReturn(supabase, orgId, year, month)
     revalidatePath("/tax/vat")

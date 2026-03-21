@@ -1,7 +1,7 @@
 "use client"
 
 import { useFieldArray, useWatch, type Control } from "react-hook-form"
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import { PlusIcon, Trash2Icon, InfoIcon } from "lucide-react"
 import { ProductPicker } from "@/components/invoices/product-picker"
 import type { Product } from "@/lib/services/products.service"
 import { Button } from "@/components/ui/button"
@@ -20,14 +20,17 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { calculateVatAmount, calculateGrossAmount, formatEur, SLOVAK_VAT_RATES } from "@vexera/utils"
+import { getAvailableVatRates, getDefaultVatRate } from "@/lib/validations/invoice.schema"
 import type { InvoiceFormValues } from "@/lib/validations/invoice.schema"
 
 type Props = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   control: Control<InvoiceFormValues, any, any>
+  /** Whether the organization is registered as DPH (VAT) payer */
+  isDphRegistered?: boolean
 }
 
-export function InvoiceItemsEditor({ control }: Props) {
+export function InvoiceItemsEditor({ control, isDphRegistered = true }: Props) {
   const { fields, append, remove, update } = useFieldArray({
     control,
     name: "items",
@@ -36,13 +39,16 @@ export function InvoiceItemsEditor({ control }: Props) {
   // Watch all items reactively for live totals
   const items = useWatch({ control, name: "items" }) ?? []
 
+  const availableVatRates = getAvailableVatRates(isDphRegistered)
+  const defaultVatRate = getDefaultVatRate(isDphRegistered)
+
   function addItem() {
     append({
       description: "",
       quantity: 1,
       unit: "ks",
       unit_price_net: 0,
-      vat_rate: 23,
+      vat_rate: defaultVatRate,
       sort_order: fields.length,
     })
   }
@@ -81,6 +87,14 @@ export function InvoiceItemsEditor({ control }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* Non-DPH info banner */}
+      {!isDphRegistered && (
+        <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-200">
+          <InfoIcon className="size-4 mt-0.5 shrink-0" />
+          <span>Nie ste platca DPH. Všetky položky sú bez DPH (0%).</span>
+        </div>
+      )}
+
       {/* Header row */}
       <div className="grid grid-cols-[1fr_80px_80px_100px_80px_80px_36px] gap-2 text-xs font-medium text-muted-foreground px-1">
         <span>Description</span>
@@ -186,6 +200,7 @@ export function InvoiceItemsEditor({ control }: Props) {
                 <Select
                   onValueChange={(v) => f.onChange(parseInt(v, 10))}
                   value={String(f.value)}
+                  disabled={!isDphRegistered}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -193,7 +208,7 @@ export function InvoiceItemsEditor({ control }: Props) {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {SLOVAK_VAT_RATES.map((rate) => (
+                    {availableVatRates.map((rate) => (
                       <SelectItem key={rate} value={String(rate)}>
                         {rate}%
                       </SelectItem>

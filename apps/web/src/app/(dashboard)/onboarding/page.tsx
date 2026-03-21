@@ -205,6 +205,10 @@ function CreateOrganizationForm({ orgType, onBack }: { orgType: OrganizationType
         await (supabase.from("freelancer_profiles") as any).insert({
           organization_id: orgId,
           tax_regime: "pausalne_vydavky",
+          registered_dph: false,
+          is_first_year: false,
+          has_social_insurance: false,
+          is_disabled: false,
         })
       } else if (orgType === "company") {
         await (supabase.from("company_profiles") as any).insert({

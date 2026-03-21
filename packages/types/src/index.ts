@@ -50,6 +50,11 @@ export interface FreelancerProfile {
   ico: string | null
   tax_regime: TaxRegime
   registered_dph: boolean
+  is_first_year: boolean
+  founding_date: string | null
+  has_social_insurance: boolean
+  paid_social_monthly: number | null
+  is_disabled: boolean
   created_at: string
 }
 
@@ -95,6 +100,68 @@ export type VatRate = (typeof VAT_RATES)[number]
 
 /** @deprecated Historical rates kept for backward compat with stored data */
 export type VatRateLegacy = 20 | 10 | VatRate
+
+// --- Slovak Tax Legislation Types (2026+) ---
+
+export interface TaxBracket {
+  /** Upper bound of this bracket (null = unlimited / top bracket) */
+  upTo: number | null
+  /** Tax rate as decimal (e.g. 0.19 = 19%) */
+  rate: number
+}
+
+export interface InsuranceConfig {
+  socialRate: number
+  healthRate: number
+  healthRateDisabled: number
+  minSocialMonthly: number
+  minHealthMonthly: number
+  minHealthMonthlyDisabled: number
+  maxVymeriavaciZaklad: number
+  osobitnyVymeriavaciZaklad: number
+  osobitnyIncomeThreshold: number
+}
+
+export interface NezdanitelnaConfig {
+  plnaCiastka: number
+  limitZakladDane: number
+  maxOdpocet: number
+}
+
+export interface SlovakTaxLegislation {
+  year: number
+  flatExpenseRate: number
+  flatExpenseCap: number
+  smallBusinessIncomeLimit: number
+  smallBusinessTaxRate: number
+  progressiveBrackets: TaxBracket[]
+  nezdanitelna: NezdanitelnaConfig
+  insurance: InsuranceConfig
+  assessmentMonths: number
+}
+
+export interface FreelancerTaxProfile {
+  taxRegime: TaxRegime
+  isVatPayer: boolean
+  isFirstYear: boolean
+  foundingDate?: string
+  hasSocialInsurance: boolean
+  paidSocialMonthly?: number
+  paidHealthMonthly?: number
+  isDisabled?: boolean
+}
+
+export interface FreelancerTaxResultV2 {
+  expenseDeduction: number
+  insuranceDeduction: number
+  nezdanitelnaCiastka: number
+  taxBase: number
+  estimatedTax: number
+  socialMonthly: number
+  healthMonthly: number
+  nextYearSocialMonthly: number
+  nextYearHealthMonthly: number
+}
 
 // Bank
 export type BankTransactionMatchStatus =
