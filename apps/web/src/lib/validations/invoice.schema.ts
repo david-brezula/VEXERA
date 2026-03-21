@@ -1,4 +1,19 @@
 import { z } from "zod"
+import type { VatRate } from "@vexera/types"
+import { SLOVAK_VAT_RATES } from "@vexera/utils"
+
+// ─── VAT rate helpers ─────────────────────────────────────────────────────────
+
+/** Returns available VAT rates based on DPH registration status */
+export function getAvailableVatRates(isDphRegistered: boolean): readonly VatRate[] {
+  if (!isDphRegistered) return [0] as const
+  return SLOVAK_VAT_RATES
+}
+
+/** Returns the default VAT rate for new invoice items */
+export function getDefaultVatRate(isDphRegistered: boolean): VatRate {
+  return isDphRegistered ? 23 : 0
+}
 
 // ─── Invoice item (one line on the invoice) ───────────────────────────────────
 
@@ -84,6 +99,54 @@ export const invoiceSchema = z.object({
 )
 
 export type InvoiceFormValues = z.infer<typeof invoiceSchema>
+
+// ─── Organization data for auto-populating invoice defaults ──────────────────
+
+type OrgData = {
+  name: string
+  ico: string
+  dic: string | null
+  ic_dph: string | null
+  address_street: string | null
+  address_city: string | null
+  address_zip: string | null
+  bank_iban: string | null
+}
+
+export function orgToInvoiceDefaults(
+  org: OrgData | null,
+  type: "issued" | "received" = "issued"
+): InvoiceFormValues {
+  const base = defaultInvoiceValues(type)
+  if (!org) return base
+
+  const address = [org.address_street, org.address_city, org.address_zip]
+    .filter(Boolean)
+    .join(", ")
+
+  if (type === "issued") {
+    return {
+      ...base,
+      supplier_name: org.name,
+      supplier_ico: org.ico ?? "",
+      supplier_dic: org.dic ?? "",
+      supplier_ic_dph: org.ic_dph ?? "",
+      supplier_address: address,
+      supplier_iban: org.bank_iban ?? "",
+      bank_iban: org.bank_iban ?? "",
+    }
+  }
+
+  // received — org is the customer
+  return {
+    ...base,
+    customer_name: org.name,
+    customer_ico: org.ico ?? "",
+    customer_dic: org.dic ?? "",
+    customer_ic_dph: org.ic_dph ?? "",
+    customer_address: address,
+  }
+}
 
 // ─── Default values for an empty new invoice ─────────────────────────────────
 

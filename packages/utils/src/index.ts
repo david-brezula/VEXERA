@@ -14,10 +14,24 @@ export {
 } from './currency'
 
 export {
+  // Legacy (deprecated)
   SLOVAK_TAX_CONFIG_2025,
   SLOVAK_TAX_CONFIG_2026,
-  calculateFlatExpenses,
   calculateFreelancerTax,
-  type TaxConfig,
-  type FreelancerTaxResult,
+  // New 2026 engine
+  SLOVAK_TAX_LEGISLATION_2026,
+  getLegislation,
+  calculateFlatExpenses,
+  calculateNezdanitelnaCiastka,
+  calculateProgressiveTax,
+  calculateTaxAmount,
+  calculateInsurance,
+  calculateFreelancerTaxV2,
+} from './tax'
+export type {
+  TaxConfig,
+  FreelancerTaxResult,
+  SlovakTaxLegislation,
+  FreelancerTaxProfile,
+  FreelancerTaxResultV2,
 } from './tax'

@@ -24,6 +24,9 @@ import {
   Calculator,
   Loader2,
   Users,
+  Info,
+  CalendarIcon,
+  Shield,
 } from "lucide-react"
 
 import type { OrganizationType } from "@vexera/types"
@@ -57,6 +60,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { Calendar } from "@/components/ui/calendar"
+import { Label } from "@/components/ui/label"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { format } from "date-fns"
+import { sk } from "date-fns/locale"
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -87,33 +100,51 @@ type Step2Values = z.infer<typeof step2Schema>
 
 // ─── Step metadata ────────────────────────────────────────────────────────────
 
-const STEPS = [
-  { id: 0, label: "Typ organizacie", icon: Building2 },
-  { id: 1, label: "Profil organizacie", icon: Building2 },
-  { id: 2, label: "Kontakt a adresa", icon: MapPin },
-  { id: 3, label: "Tim", icon: Users },
-  { id: 4, label: "Dokumenty", icon: FileText },
-  { id: 5, label: "Banka", icon: Landmark },
-] as const
+// Steps are built dynamically based on org type — see getSteps() below.
+// The freelancer-specific step ("Poistenie a dane") is only shown for freelancers.
+
+function getSteps(orgType: OrganizationType | null) {
+  const base = [
+    { id: 0, label: "Typ organizacie", icon: Building2 },
+    { id: 1, label: "Profil organizacie", icon: Building2 },
+  ]
+
+  if (orgType === "freelancer") {
+    base.push({ id: base.length, label: "Poistenie a dane", icon: Shield })
+  }
+
+  const rest = [
+    { label: "Kontakt a adresa", icon: MapPin },
+    { label: "Tim", icon: Users },
+    { label: "Dokumenty", icon: FileText },
+    { label: "Banka", icon: Landmark },
+  ]
+
+  for (const item of rest) {
+    base.push({ id: base.length, ...item })
+  }
+
+  return base
+}
 
 // ─── Progress bar ─────────────────────────────────────────────────────────────
 
-function ProgressBar({ currentStep }: { currentStep: number }) {
+function ProgressBar({ currentStep, steps }: { currentStep: number; steps: ReturnType<typeof getSteps> }) {
   return (
     <div className="space-y-3 mb-8">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-muted-foreground">
-          Krok {currentStep + 1} z {STEPS.length} —{" "}
+          Krok {currentStep + 1} z {steps.length} —{" "}
           <span className="text-foreground font-semibold">
-            {STEPS[currentStep]?.label}
+            {steps[currentStep]?.label}
           </span>
         </p>
         <p className="text-sm text-muted-foreground">
-          {Math.round((currentStep / STEPS.length) * 100)}% hotovo
+          {Math.round((currentStep / steps.length) * 100)}% hotovo
         </p>
       </div>
       <div className="flex gap-1.5">
-        {STEPS.map((step) => (
+        {steps.map((step) => (
           <div
             key={step.id}
             className={cn(
@@ -128,7 +159,7 @@ function ProgressBar({ currentStep }: { currentStep: number }) {
         ))}
       </div>
       <div className="flex gap-1.5">
-        {STEPS.map((step) => {
+        {steps.map((step) => {
           const Icon = step.icon
           return (
             <div
@@ -660,6 +691,192 @@ function Step2Form({
   )
 }
 
+// ─── Freelancer Settings Step ─────────────────────────────────────────────
+
+function FreelancerSettingsStep({
+  onNext,
+  onBack,
+}: {
+  onNext: () => void
+  onBack: () => void
+}) {
+  const { supabase } = useSupabase()
+  const { activeOrg } = useOrganization()
+  const [isLoading, setIsLoading] = useState(false)
+
+  const [isFirstYear, setIsFirstYear] = useState(false)
+  const [foundingDate, setFoundingDate] = useState<Date | undefined>(undefined)
+  const [hasSocialInsurance, setHasSocialInsurance] = useState(false)
+  const [paidSocialMonthly, setPaidSocialMonthly] = useState("")
+  const [isDisabled, setIsDisabled] = useState(false)
+
+  async function handleSave() {
+    if (!activeOrg) return
+    setIsLoading(true)
+    try {
+      const { error } = await (supabase
+        .from("freelancer_profiles") as any)
+        .update({
+          is_first_year: isFirstYear,
+          founding_date: isFirstYear && foundingDate
+            ? format(foundingDate, "yyyy-MM-dd")
+            : null,
+          has_social_insurance: hasSocialInsurance,
+          paid_social_monthly: hasSocialInsurance && paidSocialMonthly
+            ? parseFloat(paidSocialMonthly)
+            : null,
+          is_disabled: isDisabled,
+        })
+        .eq("organization_id", activeOrg.id)
+
+      if (error) throw error
+      toast.success("Nastavenia ulozene")
+      onNext()
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Nepodarilo sa ulozit nastavenia"
+      toast.error(message)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* First year of business */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="is-first-year" className="text-sm font-medium">
+            Je toto vas prvy rok podnikania?
+          </Label>
+          <Switch
+            id="is-first-year"
+            checked={isFirstYear}
+            onCheckedChange={setIsFirstYear}
+          />
+        </div>
+
+        {isFirstYear && (
+          <>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Datum zalozenia zivnosti</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !foundingDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {foundingDate
+                      ? format(foundingDate, "d. MMMM yyyy", { locale: sk })
+                      : "Vyberte datum"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={foundingDate}
+                    onSelect={setFoundingDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="flex gap-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 p-3">
+              <Info className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-blue-700 dark:text-blue-300 leading-relaxed">
+                Zdravotne poistenie je povinne od zaciatku podnikania.
+                Socialne poistenie sa stava povinnym az od 1.7. roka
+                nasledujuceho po podani prveho danoveho priznania.
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Social insurance — only shown if NOT first year */}
+      {!isFirstYear && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="has-social" className="text-sm font-medium">
+              Bola vam urcena vyska socialnych odvodov Socialnou poistovnou?
+            </Label>
+            <Switch
+              id="has-social"
+              checked={hasSocialInsurance}
+              onCheckedChange={(checked) => {
+                setHasSocialInsurance(checked)
+                if (!checked) setPaidSocialMonthly("")
+              }}
+            />
+          </div>
+
+          {hasSocialInsurance && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="social-amount" className="text-sm font-medium">
+                  Mesacna vyska socialnych odvodov
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="social-amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={paidSocialMonthly}
+                    onChange={(e) => setPaidSocialMonthly(e.target.value)}
+                    className="pr-8"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                    &euro;
+                  </span>
+                </div>
+              </div>
+
+              {paidSocialMonthly && parseFloat(paidSocialMonthly) > 0 && (
+                <div className="flex gap-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 p-3">
+                  <Info className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Vasa mesacna vyska socialnych odvodov: <strong>{parseFloat(paidSocialMonthly).toFixed(2)} &euro;</strong>
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Disability status */}
+      <div className="flex items-center justify-between">
+        <Label htmlFor="is-disabled" className="text-sm font-medium">
+          Ste osoba so zdravotnym postihnutim (ZTP)?
+        </Label>
+        <Switch
+          id="is-disabled"
+          checked={isDisabled}
+          onCheckedChange={setIsDisabled}
+        />
+      </div>
+
+      <div className="flex justify-between pt-2">
+        <Button type="button" variant="outline" onClick={onBack}>
+          <ChevronLeft className="h-4 w-4 mr-1" />
+          Spat
+        </Button>
+        <Button type="button" onClick={handleSave} disabled={isLoading}>
+          {isLoading ? "Ukladam..." : "Pokracovat"}
+          <ChevronRight className="h-4 w-4 ml-1" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Step 3: Documents guidance ───────────────────────────────────────────────
 
 function Step3Guidance({
@@ -852,8 +1069,10 @@ export function OnboardingWizard() {
   const [isComplete, setIsComplete] = useState(false)
   const [orgType, setOrgType] = useState<OrganizationType | null>(null)
 
+  const steps = getSteps(orgType)
+
   function goNext() {
-    setCurrentStep((s) => Math.min(s + 1, STEPS.length - 1))
+    setCurrentStep((s) => Math.min(s + 1, steps.length - 1))
   }
 
   function goBack() {
@@ -874,34 +1093,39 @@ export function OnboardingWizard() {
     router.push("/dashboard")
   }
 
-  const stepTitles: Record<number, { title: string; description: string }> = {
-    0: {
+  const stepTitleMap: Record<string, { title: string; description: string }> = {
+    "Typ organizacie": {
       title: "Typ organizacie",
       description: "Vyberte typ vasej organizacie, aby sme mohli prisposobit nastavenie.",
     },
-    1: {
+    "Profil organizacie": {
       title: "Profil organizacie",
       description: "Povedzte nam o vasej organizacii, aby faktury a dokumenty vyzerali profesionalne.",
     },
-    2: {
+    "Poistenie a dane": {
+      title: "Poistenie a dane",
+      description: "Nastavte informacie o socialnom poisteni a danovom statuse vasej zivnosti.",
+    },
+    "Kontakt a adresa": {
       title: "Kontakt a adresa",
       description: "Pridajte kontaktne udaje a adresu sidla.",
     },
-    3: {
+    "Tim": {
       title: "Pozvite tim",
       description: "Pozvite clenov timu na spolupracu vo vasej organizacii.",
     },
-    4: {
+    "Dokumenty": {
       title: "Nahrajte dokumenty",
       description: "Vyberte sposob importu faktur a blockov.",
     },
-    5: {
+    "Banka": {
       title: "Pripojte banku",
       description: "Importujte bankove vypisy pre automaticke parovanie transakcii.",
     },
   }
 
-  const stepInfo = stepTitles[currentStep]
+  const currentStepLabel = steps[currentStep]?.label ?? ""
+  const stepInfo = stepTitleMap[currentStepLabel]
 
   if (isComplete) {
     return (
@@ -917,7 +1141,7 @@ export function OnboardingWizard() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <ProgressBar currentStep={currentStep} />
+      <ProgressBar currentStep={currentStep} steps={steps} />
 
       <Card>
         <CardHeader>
@@ -925,26 +1149,29 @@ export function OnboardingWizard() {
           <CardDescription>{stepInfo?.description}</CardDescription>
         </CardHeader>
         <CardContent>
-          {currentStep === 0 && (
+          {currentStepLabel === "Typ organizacie" && (
             <OrgTypePicker onSelect={handleTypeSelected} />
           )}
-          {currentStep === 1 && orgType && (
+          {currentStepLabel === "Profil organizacie" && orgType && (
             <Step1Form
               onNext={goNext}
               orgName={activeOrg?.name ?? ""}
               orgType={orgType}
             />
           )}
-          {currentStep === 2 && (
+          {currentStepLabel === "Poistenie a dane" && (
+            <FreelancerSettingsStep onNext={goNext} onBack={goBack} />
+          )}
+          {currentStepLabel === "Kontakt a adresa" && (
             <Step2Form onNext={goNext} onBack={goBack} />
           )}
-          {currentStep === 3 && (
+          {currentStepLabel === "Tim" && (
             <TeamStep onNext={goNext} onBack={goBack} />
           )}
-          {currentStep === 4 && (
+          {currentStepLabel === "Dokumenty" && (
             <Step3Guidance onNext={goNext} onBack={goBack} />
           )}
-          {currentStep === 5 && (
+          {currentStepLabel === "Banka" && (
             <Step4Guidance onFinish={handleFinish} onBack={goBack} />
           )}
         </CardContent>
