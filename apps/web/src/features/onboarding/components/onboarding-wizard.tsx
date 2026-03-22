@@ -281,12 +281,12 @@ export function OnboardingWizard() {
         .from("organizations")
         .update({
           name: values.name,
-          ico: values.ico || null,
-          dic: values.dic || null,
-          ic_dph: values.ic_dph || null,
-          address_street: values.address_street || null,
-          address_city: values.address_city || null,
-          address_zip: values.address_zip || null,
+          ico: values.ico || undefined,
+          dic: values.dic || undefined,
+          ic_dph: values.ic_dph || undefined,
+          address_street: values.address_street || undefined,
+          address_city: values.address_city || undefined,
+          address_zip: values.address_zip || undefined,
         })
         .eq("id", orgId)
       if (orgError) throw orgError
