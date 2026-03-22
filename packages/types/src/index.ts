@@ -55,6 +55,10 @@ export interface FreelancerProfile {
   has_social_insurance: boolean
   paid_social_monthly: number | null
   is_disabled: boolean
+  is_student: boolean
+  is_pensioner: boolean
+  has_other_employment: boolean
+  paid_health_monthly: number | null
   created_at: string
 }
 
@@ -149,6 +153,9 @@ export interface FreelancerTaxProfile {
   paidSocialMonthly?: number
   paidHealthMonthly?: number
   isDisabled?: boolean
+  isStudent?: boolean
+  isPensioner?: boolean
+  hasOtherEmployment?: boolean
 }
 
 export interface FreelancerTaxResultV2 {
