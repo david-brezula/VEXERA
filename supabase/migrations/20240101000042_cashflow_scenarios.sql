@@ -36,11 +36,11 @@ alter table public.cashflow_scenarios enable row level security;
 
 create policy "Users can view scenarios for their orgs"
   on public.cashflow_scenarios for select
-  using (organization_id in (select public.get_accessible_organization_ids()));
+  using (organization_id = ANY(public.get_accessible_organization_ids()));
 
 create policy "Users can insert scenarios for their orgs"
   on public.cashflow_scenarios for insert
-  with check (organization_id in (select public.get_user_organization_ids()));
+  with check (organization_id = ANY(public.get_user_organization_ids()));
 
 create policy "Users can update their own scenarios"
   on public.cashflow_scenarios for update
@@ -55,4 +55,4 @@ create policy "Users can delete their own scenarios"
 create trigger set_cashflow_scenarios_updated_at
   before update on public.cashflow_scenarios
   for each row
-  execute function public.set_updated_at();
+  execute function public.update_updated_at_column();

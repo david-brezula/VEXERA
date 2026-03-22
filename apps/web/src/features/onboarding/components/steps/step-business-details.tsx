@@ -74,7 +74,6 @@ export function StepBusinessDetails({
                     }
                   }}
                   disabled={(date) => date > new Date()}
-                  initialFocus
                 />
               </PopoverContent>
             </Popover>

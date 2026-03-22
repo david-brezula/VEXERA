@@ -45,23 +45,23 @@ alter table public.products enable row level security;
 
 create policy "Users can view products for their orgs"
   on public.products for select
-  using (organization_id in (select public.get_accessible_organization_ids()));
+  using (organization_id = ANY(public.get_accessible_organization_ids()));
 
 create policy "Users can insert products for their orgs"
   on public.products for insert
-  with check (organization_id in (select public.get_user_organization_ids()));
+  with check (organization_id = ANY(public.get_user_organization_ids()));
 
 create policy "Users can update products for their orgs"
   on public.products for update
-  using (organization_id in (select public.get_user_organization_ids()));
+  using (organization_id = ANY(public.get_user_organization_ids()));
 
 create policy "Users can delete products for their orgs"
   on public.products for delete
-  using (organization_id in (select public.get_user_organization_ids()));
+  using (organization_id = ANY(public.get_user_organization_ids()));
 
 -- ─── Updated_at trigger ─────────────────────────────────────────────────────
 
 create trigger set_products_updated_at
   before update on public.products
   for each row
-  execute function public.set_updated_at();
+  execute function public.update_updated_at_column();

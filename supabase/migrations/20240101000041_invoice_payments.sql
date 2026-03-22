@@ -50,16 +50,16 @@ alter table public.invoice_payments enable row level security;
 
 create policy "Users can view payments for their orgs"
   on public.invoice_payments for select
-  using (organization_id in (select public.get_accessible_organization_ids()));
+  using (organization_id = ANY(public.get_accessible_organization_ids()));
 
 create policy "Users can insert payments for their orgs"
   on public.invoice_payments for insert
-  with check (organization_id in (select public.get_user_organization_ids()));
+  with check (organization_id = ANY(public.get_user_organization_ids()));
 
 create policy "Users can update payments for their orgs"
   on public.invoice_payments for update
-  using (organization_id in (select public.get_user_organization_ids()));
+  using (organization_id = ANY(public.get_user_organization_ids()));
 
 create policy "Users can delete payments for their orgs"
   on public.invoice_payments for delete
-  using (organization_id in (select public.get_user_organization_ids()));
+  using (organization_id = ANY(public.get_user_organization_ids()));

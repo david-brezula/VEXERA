@@ -31,23 +31,23 @@ alter table public.archive_policies enable row level security;
 
 create policy "Users can view archive policies for their orgs"
   on public.archive_policies for select
-  using (organization_id in (select public.get_accessible_organization_ids()));
+  using (organization_id = ANY(public.get_accessible_organization_ids()));
 
 create policy "Users can insert archive policies for their orgs"
   on public.archive_policies for insert
-  with check (organization_id in (select public.get_user_organization_ids()));
+  with check (organization_id = ANY(public.get_user_organization_ids()));
 
 create policy "Users can update archive policies for their orgs"
   on public.archive_policies for update
-  using (organization_id in (select public.get_user_organization_ids()));
+  using (organization_id = ANY(public.get_user_organization_ids()));
 
 create policy "Users can delete archive policies for their orgs"
   on public.archive_policies for delete
-  using (organization_id in (select public.get_user_organization_ids()));
+  using (organization_id = ANY(public.get_user_organization_ids()));
 
 -- ─── Updated_at trigger ─────────────────────────────────────────────────────
 
 create trigger set_archive_policies_updated_at
   before update on public.archive_policies
   for each row
-  execute function public.set_updated_at();
+  execute function public.update_updated_at_column();
