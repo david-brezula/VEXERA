@@ -143,7 +143,7 @@ export function OnboardingWizard() {
   const { supabase, user } = useSupabase()
   const { activeOrg } = useOrganization()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [orgCreated, setOrgCreated] = useState(!!activeOrg)
+  const [createdOrgId, setCreatedOrgId] = useState<string | null>(null)
 
   const {
     form,
@@ -189,7 +189,7 @@ export function OnboardingWizard() {
           )
         if (upsertError) throw upsertError
 
-        setOrgCreated(true)
+        setCreatedOrgId(activeOrg.id)
         goNext()
       } else if (user) {
         // Create new org + member + freelancer profile
@@ -214,6 +214,7 @@ export function OnboardingWizard() {
           .insert({
             id: orgId,
             name: "Moja zivnost",
+            ico: "",
             organization_type: "freelancer",
           })
         if (orgError) throw orgError
@@ -245,7 +246,7 @@ export function OnboardingWizard() {
         // Set active org cookie
         document.cookie = `active_organization_id=${encodeURIComponent(orgId)}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
 
-        setOrgCreated(true)
+        setCreatedOrgId(orgId)
         goNext()
       }
     } catch (err) {
@@ -259,7 +260,7 @@ export function OnboardingWizard() {
 
   // Final submit
   async function handleSubmit(values: WizardFormValues) {
-    const orgId = activeOrg?.id
+    const orgId = activeOrg?.id ?? createdOrgId
     if (!orgId) return
     setIsSubmitting(true)
 
