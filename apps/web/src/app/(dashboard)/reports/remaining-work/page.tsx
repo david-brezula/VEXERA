@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { RemainingWorkPageClient } from "@/components/reports/remaining-work-page-client"
+import { RemainingWorkPageClient } from "@/features/reports/components/remaining-work-page-client"
 
 export const metadata = {
   title: "Remaining Work | Vexera",

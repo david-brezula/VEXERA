@@ -25,22 +25,37 @@ export async function getFreelancerTaxData(orgId: string): Promise<FreelancerTax
   // Get freelancer profile with new columns
   const { data: profile } = await supabase
     .from("freelancer_profiles")
-    .select("tax_regime, is_first_year, founding_date, has_social_insurance, paid_social_monthly, is_disabled, registered_dph")
+    .select("tax_regime, is_first_year, founding_date, has_social_insurance, paid_social_monthly, paid_health_monthly, is_disabled, is_student, is_pensioner, has_other_employment, registered_dph")
     .eq("organization_id", orgId)
     .single()
 
   const taxRegime = (profile?.tax_regime ?? "pausalne_vydavky") as "pausalne_vydavky" | "naklady"
   const useFlatExpenses = taxRegime === "pausalne_vydavky"
 
+  // Dynamically compute isFirstYear from founding_date (don't rely on static DB flag)
+  const foundingDate = profile?.founding_date ?? undefined
+  const isFirstYear = (() => {
+    if (!foundingDate) return profile?.is_first_year ?? false
+    const founded = new Date(foundingDate)
+    const now = new Date()
+    const monthsDiff =
+      (now.getFullYear() - founded.getFullYear()) * 12 +
+      (now.getMonth() - founded.getMonth())
+    return monthsDiff < 12
+  })()
+
   // Build FreelancerTaxProfile from DB data
   const taxProfile: FreelancerTaxProfile = {
     taxRegime,
     isVatPayer: profile?.registered_dph ?? false,
-    isFirstYear: profile?.is_first_year ?? false,
-    foundingDate: profile?.founding_date ?? undefined,
+    isFirstYear,
+    foundingDate,
     hasSocialInsurance: profile?.has_social_insurance ?? false,
     paidSocialMonthly: profile?.paid_social_monthly != null ? Number(profile.paid_social_monthly) : undefined,
     isDisabled: profile?.is_disabled ?? false,
+    isStudent: profile?.is_student ?? false,
+    isPensioner: profile?.is_pensioner ?? false,
+    hasOtherEmployment: profile?.has_other_employment ?? false,
   }
 
   // Fetch current year income, prior year income, and expenses in parallel
@@ -86,16 +101,17 @@ export async function getFreelancerTaxData(orgId: string): Promise<FreelancerTax
   const actualExpenses = (expenseInvoices ?? []).reduce((sum, inv) => sum + Number(inv[amountField] ?? 0), 0)
   const priorYearExpenses = (priorExpenseInvoices ?? []).reduce((sum, inv) => sum + Number(inv[amountField] ?? 0), 0)
 
-  // Prior year calculation to determine current social insurance payments
+  // Prior year calculation to determine current insurance payments
+  // Slovak law: current year insurance is based on prior year income, respecting exemptions
   const priorResult = calculateFreelancerTaxV2(priorYearIncome, priorYearExpenses, taxProfile, priorLegislation)
   const currentSocialMonthly = priorResult.socialMonthly
+  const currentHealthMonthly = priorResult.healthMonthly
 
-  // Build a profile with known paid insurance for the current year calculation
-  // Social payments are based on prior year income; health uses prior year minimum
+  // Build a profile with known paid insurance for the current year tax calculation
   const currentYearProfile: FreelancerTaxProfile = {
     ...taxProfile,
     paidSocialMonthly: currentSocialMonthly,
-    paidHealthMonthly: priorLegislation.insurance.minHealthMonthly,
+    paidHealthMonthly: currentHealthMonthly,
   }
 
   const taxResult = calculateFreelancerTaxV2(
@@ -111,7 +127,7 @@ export async function getFreelancerTaxData(orgId: string): Promise<FreelancerTax
   const finalTaxResult: FreelancerTaxResultV2 = {
     ...taxResult,
     socialMonthly: currentSocialMonthly,
-    healthMonthly: priorLegislation.insurance.minHealthMonthly,
+    healthMonthly: currentHealthMonthly,
     nextYearSocialMonthly: nextYearEstimate.socialMonthly,
     nextYearHealthMonthly: nextYearEstimate.healthMonthly,
   }

@@ -2,8 +2,8 @@
 
 import Link from "next/link"
 import { ChevronLeftIcon } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { InvoiceForm } from "@/components/invoices/invoice-form"
+import { Button } from "@/shared/components/ui/button"
+import { InvoiceForm } from "@/features/invoices/components/invoice-form"
 
 export default function NewInvoicePage() {
   return (

@@ -3,17 +3,17 @@
 import { useMemo, useState, useCallback } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { AlertTriangle, Download, FileText } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card"
+import { Badge } from "@/shared/components/ui/badge"
+import { Button } from "@/shared/components/ui/button"
+import { Skeleton } from "@/shared/components/ui/skeleton"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/shared/components/ui/select"
 import {
   Table,
   TableBody,
@@ -21,10 +21,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { getIncomeTaxDataAction } from "@/lib/data/income-tax"
-import { exportIncomeTaxAction } from "@/lib/actions/xml-export"
-import { getUpcomingDeadlinesAction } from "@/lib/actions/legislative"
+} from "@/shared/components/ui/table"
+import { getIncomeTaxDataAction } from "@/features/reports/tax/income-data"
+import { exportIncomeTaxAction } from "@/features/export/actions"
+import { getUpcomingDeadlinesAction } from "@/features/reports/actions-legislative"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -68,13 +68,13 @@ export default function IncomeTaxPage() {
   const deadlines = deadlinesResult ?? []
   const incomeTaxDeadline = Array.isArray(deadlines)
     ? deadlines.find(
-        (d: any) =>
+        (d: { key?: string; description?: string }) =>
           d.key?.includes("income_tax") ||
           d.description?.toLowerCase().includes("dan z prijmov"),
       )
     : null
 
-  const deadlineDate = taxData?.filingDeadline ?? (incomeTaxDeadline as any)?.date ?? null
+  const deadlineDate = taxData?.filingDeadline ?? (incomeTaxDeadline as { date?: string })?.date ?? null
   const daysUntilDeadline = deadlineDate
     ? Math.ceil((new Date(deadlineDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null
@@ -271,11 +271,10 @@ export default function IncomeTaxPage() {
                     <TableCell>
                       <span className="font-medium">Sadzba dane</span>
                       <span className="ml-1 text-xs text-muted-foreground">
-                        ({formatPercent(taxData.config.standardTaxRate)} do{" "}
-                        {formatEur(taxData.config.incomeThreshold1)},{" "}
-                        {formatPercent(taxData.config.higherTaxRate)} do{" "}
-                        {formatEur(taxData.config.incomeThreshold2)},{" "}
-                        {formatPercent(taxData.config.topTaxRate)} nad)
+                        {taxData.income <= taxData.config.incomeThreshold1
+                          ? `${formatPercent(taxData.config.standardTaxRate)} (príjem ≤ ${formatEur(taxData.config.incomeThreshold1)})`
+                          : `${formatPercent(taxData.config.higherTaxRate)} / ${formatPercent(taxData.config.topTaxRate)} (príjem > ${formatEur(taxData.config.incomeThreshold1)})`
+                        }
                       </span>
                     </TableCell>
                     <TableCell />
@@ -295,24 +294,50 @@ export default function IncomeTaxPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base font-semibold">
-                Mesačné odvody (odhad)
+                Mesačné odvody
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <p className="text-sm text-muted-foreground">Sociálne poistenie</p>
-                  <p className="text-xl font-bold tabular-nums">
-                    {formatEur(taxData.taxResult.socialMonthly)}
-                    <span className="text-sm font-normal text-muted-foreground">/mes</span>
-                  </p>
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium">Platíte v {selectedYear}</p>
+                    <p className="text-xs text-muted-foreground">z príjmov za {Number(selectedYear) - 1}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Sociálne poistenie</p>
+                    <p className="text-xl font-bold tabular-nums">
+                      {formatEur(taxData.taxResult.socialMonthly)}
+                      <span className="text-sm font-normal text-muted-foreground">/mes</span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Zdravotné poistenie</p>
+                    <p className="text-xl font-bold tabular-nums">
+                      {formatEur(taxData.taxResult.healthMonthly)}
+                      <span className="text-sm font-normal text-muted-foreground">/mes</span>
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Zdravotné poistenie</p>
-                  <p className="text-xl font-bold tabular-nums">
-                    {formatEur(taxData.taxResult.healthMonthly)}
-                    <span className="text-sm font-normal text-muted-foreground">/mes</span>
-                  </p>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium">Odhad od {Number(selectedYear) + 1}</p>
+                    <p className="text-xs text-muted-foreground">z príjmov za {selectedYear}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Sociálne poistenie</p>
+                    <p className="text-xl font-bold tabular-nums">
+                      {formatEur(taxData.taxResult.nextYearSocialMonthly)}
+                      <span className="text-sm font-normal text-muted-foreground">/mes</span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Zdravotné poistenie</p>
+                    <p className="text-xl font-bold tabular-nums">
+                      {formatEur(taxData.taxResult.nextYearHealthMonthly)}
+                      <span className="text-sm font-normal text-muted-foreground">/mes</span>
+                    </p>
+                  </div>
                 </div>
               </div>
             </CardContent>

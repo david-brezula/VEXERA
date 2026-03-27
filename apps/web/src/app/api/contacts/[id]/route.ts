@@ -5,9 +5,29 @@
  */
 
 import { NextResponse } from "next/server"
+import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { getContact, updateContact, deleteContact } from "@/lib/services/contacts.service"
-import { writeAuditLog } from "@/lib/services/audit.server"
+import { getContact, updateContact, deleteContact } from "@/features/contacts/service"
+import { writeAuditLog } from "@/shared/services/audit.server"
+import { verifyOrgMembership, forbiddenResponse } from "@/shared/lib/api-utils"
+
+const contactUpdateSchema = z.object({
+  name: z.string().min(1).optional(),
+  ico: z.string().optional().nullable(),
+  dic: z.string().optional().nullable(),
+  ic_dph: z.string().optional().nullable(),
+  contact_type: z.enum(["supplier", "client", "both"]).optional(),
+  street: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  postal_code: z.string().optional().nullable(),
+  country: z.string().optional(),
+  email: z.string().email().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  website: z.string().optional().nullable(),
+  bank_account: z.string().optional().nullable(),
+  is_key_client: z.boolean().optional(),
+  notes: z.string().optional().nullable(),
+}).strict()
 
 export async function GET(
   _request: Request,
@@ -30,6 +50,8 @@ export async function GET(
     if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
     const orgId = (data as unknown as { organization_id: string }).organization_id
+    const membership = await verifyOrgMembership(supabase, user.id, orgId)
+    if (!membership) return forbiddenResponse()
     const contact = await getContact(supabase, orgId, id)
     if (!contact) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
@@ -52,7 +74,16 @@ export async function PATCH(
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     const { id } = await params
-    const body = await request.json()
+    const rawBody = await request.json()
+
+    const parsed = contactUpdateSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      )
+    }
+    const body = parsed.data
 
     const { data: existing } = await supabase
       .from("contacts")
@@ -63,6 +94,8 @@ export async function PATCH(
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
     const orgId = (existing as unknown as { organization_id: string }).organization_id
+    const membership = await verifyOrgMembership(supabase, user.id, orgId)
+    if (!membership) return forbiddenResponse()
     const contact = await updateContact(supabase, orgId, id, body)
 
     await writeAuditLog(supabase, {
@@ -103,6 +136,8 @@ export async function DELETE(
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
     const orgId = (existing as unknown as { organization_id: string }).organization_id
+    const membership = await verifyOrgMembership(supabase, user.id, orgId)
+    if (!membership) return forbiddenResponse()
     await deleteContact(supabase, orgId, id)
 
     await writeAuditLog(supabase, {

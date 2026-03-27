@@ -2,8 +2,8 @@ import { notFound } from "next/navigation"
 import { format } from "date-fns"
 import { formatEur } from "@vexera/utils"
 
-import { getInvoice } from "@/lib/data/invoices"
-import { QrPaymentCode } from "@/components/invoices/qr-payment-code"
+import { getInvoice } from "@/features/invoices/data"
+import { QrPaymentCode } from "@/features/invoices/components/qr-payment-code"
 import { PrintControls } from "./print-controls"
 
 export default async function InvoicePrintPage({
@@ -214,11 +214,11 @@ export default async function InvoicePrintPage({
           <div className="mt-6 flex items-start gap-4">
             <QrPaymentCode
               amount={Number(invoice.total)}
-              currency={(invoice as any).currency || "EUR"}
+              currency={invoice.currency || "EUR"}
               iban={invoice.supplier_iban}
               variableSymbol={invoice.variable_symbol ?? undefined}
               constantSymbol={invoice.constant_symbol ?? undefined}
-              specificSymbol={(invoice as any).specific_symbol ?? undefined}
+              specificSymbol={invoice.specific_symbol ?? undefined}
               dueDate={invoice.due_date}
               beneficiaryName={invoice.supplier_name}
               note={`Invoice ${invoice.invoice_number}`}

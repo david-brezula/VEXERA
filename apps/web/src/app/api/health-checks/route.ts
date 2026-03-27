@@ -20,9 +20,9 @@ import {
   runHealthChecks,
   getHealthCheckIssues,
   getLatestHealthCheckRun,
-} from "@/lib/services/health-check.service"
-import type { Severity, CheckType } from "@/lib/services/health-check.service"
-import { writeAuditLog } from "@/lib/services/audit.server"
+} from "@/features/reports/health-checks/service"
+import type { Severity, CheckType } from "@/features/reports/health-checks/service"
+import { writeAuditLog } from "@/shared/services/audit.server"
 
 const TriggerSchema = z.object({
   organization_id: z.string().uuid(),

@@ -1,11 +1,11 @@
 import { Suspense } from "react"
 import { FolderOpenIcon } from "lucide-react"
 
-import { getDocuments, type DocumentFilters } from "@/lib/data/documents"
-import { getActiveOrgId } from "@/lib/data/org"
-import { DocumentsTableClient } from "@/components/documents/documents-table-client"
-import { PaginationControls } from "@/components/ui/pagination-controls"
-import { Skeleton } from "@/components/ui/skeleton"
+import { getDocuments, type DocumentFilters } from "@/features/documents/data"
+import { getActiveOrgId } from "@/features/settings/data-org"
+import { DocumentsTableClient } from "@/features/documents/components/documents-table-client"
+import { PaginationControls } from "@/shared/components/ui/pagination-controls"
+import { Skeleton } from "@/shared/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -13,7 +13,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/shared/components/ui/table"
 import type { DocumentStatus } from "@vexera/types"
 
 // ─── Async data component ─────────────────────────────────────────────────────
@@ -92,7 +92,7 @@ export default async function DocumentsPage({
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <FolderOpenIcon className="size-12 text-muted-foreground mb-4" />
-        <p className="text-muted-foreground">Select an organization to view documents</p>
+        <p className="text-muted-foreground">Vyberte organizáciu pre zobrazenie dokladov</p>
       </div>
     )
   }
@@ -115,9 +115,9 @@ export default async function DocumentsPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Documents</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Doklady</h1>
         <p className="text-muted-foreground">
-          Upload and manage accounting documents
+          Nahrávajte a spravujte účtovné doklady
         </p>
       </div>
 

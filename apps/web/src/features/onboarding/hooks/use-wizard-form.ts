@@ -1,81 +1,71 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { wizardSchema, stepSchemas, type WizardFormValues } from "../schemas"
 
 const STORAGE_KEY = "vexera_onboarding_wizard"
 
-// Wizard step indices (after org type selection):
-// 0 = org type (handled outside form)
-// 1 = business identity (step1Schema)
-// 2 = business details (step2Schema)
-// 3 = personal status (step3Schema)
-// 4 = insurance (step4Schema) — conditional
-// 5 = summary (no schema validation)
+const DEFAULT_VALUES: WizardFormValues = {
+  name: "",
+  ico: "",
+  dic: "",
+  ic_dph: "",
+  address_street: "",
+  address_city: "",
+  address_zip: "",
+  founding_date: "",
+  tax_regime: "pausalne_vydavky",
+  registered_dph: false,
+  is_student: false,
+  is_disabled: false,
+  is_pensioner: false,
+  has_other_employment: false,
+  paid_social_monthly: undefined,
+  paid_health_monthly: undefined,
+}
+
+function loadSavedData(): { values: WizardFormValues; step: number } | null {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
 
 export function useWizardForm() {
-  const [currentStep, setCurrentStep] = useState(0)
-
-  // Restore saved state from localStorage
-  const savedData =
-    typeof window !== "undefined"
-      ? (() => {
-          try {
-            const raw = localStorage.getItem(STORAGE_KEY)
-            return raw ? JSON.parse(raw) : null
-          } catch {
-            return null
-          }
-        })()
-      : null
+  const savedData = useRef(loadSavedData())
+  const [currentStep, setCurrentStep] = useState(savedData.current?.step ?? 0)
+  const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const form = useForm<WizardFormValues>({
     resolver: zodResolver(wizardSchema),
-    defaultValues: savedData?.values ?? {
-      name: "",
-      ico: "",
-      dic: "",
-      ic_dph: "",
-      address_street: "",
-      address_city: "",
-      address_zip: "",
-      founding_date: "",
-      tax_regime: "pausalne_vydavky",
-      registered_dph: false,
-      is_student: false,
-      is_disabled: false,
-      is_pensioner: false,
-      has_other_employment: false,
-      paid_social_monthly: undefined,
-      paid_health_monthly: undefined,
-    },
+    defaultValues: savedData.current?.values ?? DEFAULT_VALUES,
   })
 
-  // Save form state to localStorage on value changes
+  // Debounced save to localStorage (every 500ms, not on every keystroke)
   useEffect(() => {
     const subscription = form.watch((values) => {
-      try {
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({ values, step: currentStep })
-        )
-      } catch {
-        // Ignore storage errors
-      }
+      if (saveTimeout.current) clearTimeout(saveTimeout.current)
+      saveTimeout.current = setTimeout(() => {
+        try {
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({ values, step: currentStep })
+          )
+        } catch {}
+      }, 500)
     })
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+      if (saveTimeout.current) clearTimeout(saveTimeout.current)
+    }
   }, [form, currentStep])
 
-  // Restore step from localStorage
-  useEffect(() => {
-    if (savedData?.step) {
-      setCurrentStep(savedData.step)
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Compute derived values
+  // Compute derived values — only watch the two fields we need
   const foundingDate = form.watch("founding_date")
   const isPensioner = form.watch("is_pensioner")
 
@@ -89,21 +79,17 @@ export function useWizardForm() {
     return monthsDiff < 12
   })()
 
-  // Insurance step is shown only when NOT first year AND NOT pensioner
   const showInsuranceStep = !isFirstYear && !isPensioner
-
-  // Total steps: type(0), identity(1), details(2), status(3), [insurance(4)], summary
   const totalSteps = showInsuranceStep ? 6 : 5
 
-  // Map visual step to schema index for validation
   const getSchemaForStep = useCallback(
     (step: number) => {
-      if (step === 0) return null // org type, no form validation
+      if (step === 0) return null
       if (step === 1) return stepSchemas[0]
       if (step === 2) return stepSchemas[1]
       if (step === 3) return stepSchemas[2]
       if (step === 4 && showInsuranceStep) return stepSchemas[3]
-      return null // summary
+      return null
     },
     [showInsuranceStep]
   )
@@ -111,7 +97,6 @@ export function useWizardForm() {
   const goNext = useCallback(async () => {
     const schema = getSchemaForStep(currentStep)
     if (schema) {
-      // Validate only the fields for the current step
       const fields = Object.keys(
         schema.shape
       ) as (keyof WizardFormValues)[]
@@ -133,9 +118,7 @@ export function useWizardForm() {
   const clearSavedState = useCallback(() => {
     try {
       localStorage.removeItem(STORAGE_KEY)
-    } catch {
-      // Ignore storage errors
-    }
+    } catch {}
   }, [])
 
   return {

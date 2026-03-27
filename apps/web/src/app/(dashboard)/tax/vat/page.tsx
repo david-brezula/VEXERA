@@ -4,17 +4,18 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { AlertTriangle, Calculator, ChevronRight } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { toast } from "sonner"
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card"
+import { Badge } from "@/shared/components/ui/badge"
+import { Button } from "@/shared/components/ui/button"
+import { Skeleton } from "@/shared/components/ui/skeleton"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/shared/components/ui/select"
 import {
   Table,
   TableBody,
@@ -22,13 +23,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/shared/components/ui/table"
 import {
   getVatReturnsAction,
   computeVatReturnAction,
   getOrgFilingFrequencyAction,
-} from "@/lib/actions/vat-returns"
-import { getUpcomingDeadlinesAction } from "@/lib/actions/legislative"
+} from "@/features/reports/vat/actions"
+import { getUpcomingDeadlinesAction } from "@/features/reports/actions-legislative"
 import type { VatReturn } from "@vexera/types"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -104,11 +105,11 @@ export default function VatReturnsPage() {
   const deadlines = deadlinesResult ?? []
   const vatDeadline = Array.isArray(deadlines)
     ? deadlines.find(
-        (d: any) => d.key?.includes("vat") || d.description?.toLowerCase().includes("dph")
+        (d: { key?: string; description?: string }) => d.key?.includes("vat") || d.description?.toLowerCase().includes("dph")
       )
     : null
 
-  const daysUntilDeadline = vatDeadline ? (vatDeadline as any).daysUntil : null
+  const daysUntilDeadline = vatDeadline ? (vatDeadline as { daysUntil?: number }).daysUntil ?? null : null
   const isDeadlineUrgent = daysUntilDeadline !== null && daysUntilDeadline < 14
 
   // Build a map of month -> return
@@ -152,8 +153,15 @@ export default function VatReturnsPage() {
     async (month: number) => {
       setComputingMonth(month)
       try {
-        await computeVatReturnAction(Number(selectedYear), month)
+        const result = await computeVatReturnAction(Number(selectedYear), month)
+        if (result.error) {
+          toast.error("Chyba pri výpočte DPH", { description: result.error })
+          return
+        }
+        toast.success("DPH priznanie vypočítané")
         await refetch()
+      } catch (err) {
+        toast.error("Neočakávaná chyba pri výpočte DPH")
       } finally {
         setComputingMonth(null)
       }
@@ -204,8 +212,8 @@ export default function VatReturnsPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm">
-              <strong>{(vatDeadline as any).description}</strong> &mdash;{" "}
-              {(vatDeadline as any).date}
+              <strong>{(vatDeadline as { description?: string }).description}</strong> &mdash;{" "}
+              {(vatDeadline as { date?: string }).date}
               {daysUntilDeadline !== null && (
                 <span
                   className={

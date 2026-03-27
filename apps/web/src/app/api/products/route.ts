@@ -10,8 +10,9 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { listProducts, createProduct } from "@/lib/services/products.service"
-import { writeAuditLog } from "@/lib/services/audit.server"
+import { listProducts, createProduct } from "@/features/products/service"
+import { writeAuditLog } from "@/shared/services/audit.server"
+import { verifyOrgMembership, forbiddenResponse } from "@/shared/lib/api-utils"
 
 const createSchema = z.object({
   organization_id: z.string().uuid(),
@@ -36,6 +37,9 @@ export async function GET(request: Request) {
     if (!organizationId) {
       return NextResponse.json({ error: "organization_id is required" }, { status: 400 })
     }
+
+    const membership = await verifyOrgMembership(supabase, user.id, organizationId)
+    if (!membership) return forbiddenResponse()
 
     const activeOnly = url.searchParams.get("active_only") === "true"
     const products = await listProducts(supabase, organizationId, activeOnly)
@@ -62,6 +66,10 @@ export async function POST(request: Request) {
     }
 
     const { organization_id, ...input } = parsed.data
+
+    const membership = await verifyOrgMembership(supabase, user.id, organization_id)
+    if (!membership) return forbiddenResponse()
+
     const product = await createProduct(supabase, organization_id, input)
 
     await writeAuditLog(supabase, {

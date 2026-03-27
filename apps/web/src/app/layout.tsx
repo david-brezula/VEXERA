@@ -5,7 +5,7 @@ import "./globals.css"
 import { SupabaseProvider } from "@/providers/supabase-provider"
 import { QueryProvider } from "@/providers/query-provider"
 import { OrganizationProvider } from "@/providers/organization-provider"
-import { Toaster } from "@/components/ui/sonner"
+import { Toaster } from "@/shared/components/ui/sonner"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,9 +18,9 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Vexera - Invoice Management",
+  title: "Vexera - Správa faktúr",
   description:
-    "Multi-tenant SaaS for invoice management, accounting, and ledger management",
+    "SaaS pre správu faktúr, účtovníctvo a vedenie účtovnej knihy",
 }
 
 export default function RootLayout({
@@ -29,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="sk" suppressHydrationWarning>
+    <html lang="sk" suppressHydrationWarning data-scroll-behavior="smooth">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

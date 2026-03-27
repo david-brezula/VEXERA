@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { BarChart3, Users, FolderKanban, Clock, TrendingUp } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card"
 
 export const metadata = {
   title: "Reports | Vexera",

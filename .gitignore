@@ -35,6 +35,7 @@ desktop.ini
 # Supabase
 supabase/.temp/
 supabase/.branches/
+supabase_startup.log
 
 # Debug
 npm-debug.log*

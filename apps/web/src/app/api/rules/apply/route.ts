@@ -27,8 +27,8 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { evaluateAndApply } from "@/lib/services/rules-engine.service"
-import { writeAuditLog } from "@/lib/services/audit.server"
+import { evaluateAndApply } from "@/features/rules/service"
+import { writeAuditLog } from "@/shared/services/audit.server"
 import type { Rule } from "@vexera/types"
 
 const ApplySchema = z.object({
@@ -138,8 +138,7 @@ export async function POST(request: Request) {
       }
 
       // Write patches to DB (table is "documents" or "bank_transactions" — both known types)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: updateErr } = await (supabase.from(table as any) as any)
+      const { error: updateErr } = await supabase.from(table)
         .update(patches)
         .eq("id", entity.id)
         .eq("organization_id", organization_id)
@@ -151,26 +150,27 @@ export async function POST(request: Request) {
 
       patchedCount++
 
-      // Log each applied rule to rule_applications + stamp last_applied_at
-      const now = new Date().toISOString()
+      // Log each applied rule to rule_applications
       for (const ruleId of appliedRuleIds) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase.from("rule_applications" as any) as any).insert({
+        await supabase.from("rule_applications").insert({
           rule_id: ruleId,
           organization_id,
           entity_type: target_entity,
           entity_id: entity.id,
           actions_applied: patches,
         })
-
-        // Stamp last_applied_at (best-effort — no RPC needed)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase.from("rules" as any) as any)
-          .update({ last_applied_at: now })
-          .eq("id", ruleId)
       }
 
       results.push({ entity_id: entity.id, applied_rule_ids: appliedRuleIds, patches })
+    }
+
+    // Batch-update last_applied_at for all applied rules (avoid N+1)
+    const allAppliedRuleIds = [...new Set(results.flatMap((r) => r.applied_rule_ids))]
+    if (allAppliedRuleIds.length > 0) {
+      const now = new Date().toISOString()
+      await supabase.from("rules")
+        .update({ last_applied_at: now })
+        .in("id", allAppliedRuleIds)
     }
 
     await writeAuditLog(supabase, {

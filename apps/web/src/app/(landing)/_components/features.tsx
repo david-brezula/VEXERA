@@ -11,7 +11,7 @@ import {
   BarChart3,
   type LucideIcon,
 } from "lucide-react";
-import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
+import { useIntersectionObserver } from "@/shared/hooks/use-intersection-observer";
 import { cn } from "@/lib/utils";
 
 interface Feature {

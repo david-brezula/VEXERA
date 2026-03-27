@@ -1,17 +1,17 @@
 import { Suspense } from "react"
 import { BookOpen } from "lucide-react"
 
-import { getActiveOrgId } from "@/lib/data/org"
+import { getActiveOrgId } from "@/features/settings/data-org"
 import {
   getJournalEntries,
   getChartOfAccounts,
   getAccountBalances,
   getLedgerSummary,
-} from "@/lib/data/ledger"
-import { getFiscalPeriods } from "@/lib/data/fiscal-periods"
-import { LedgerClient } from "@/components/ledger/ledger-client"
-import { PaginationControls } from "@/components/ui/pagination-controls"
-import { Skeleton } from "@/components/ui/skeleton"
+  getFiscalPeriods,
+  LedgerClient,
+} from "@/features/ledger"
+import { PaginationControls } from "@/shared/components/ui/pagination-controls"
+import { Skeleton } from "@/shared/components/ui/skeleton"
 
 export const metadata = { title: "Ledger | Vexera" }
 
@@ -53,7 +53,7 @@ export default async function LedgerPage({
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <BookOpen className="size-12 text-muted-foreground mb-4" />
         <p className="text-muted-foreground">
-          Select an organization to view the ledger
+          Vyberte organizáciu pre zobrazenie účtovnej knihy
         </p>
       </div>
     )
@@ -62,9 +62,9 @@ export default async function LedgerPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Ledger</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Účtovná kniha</h1>
         <p className="text-muted-foreground">
-          General ledger, chart of accounts & balances
+          Hlavná kniha, účtový rozvrh a zostatky
         </p>
       </div>
       <Suspense

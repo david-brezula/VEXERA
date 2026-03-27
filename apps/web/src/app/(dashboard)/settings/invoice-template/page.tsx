@@ -5,26 +5,28 @@ import { toast } from "sonner"
 import {
   getInvoiceTemplateSettingsAction,
   updateInvoiceTemplateSettingsAction,
-} from "@/lib/actions/invoice-template"
-import { DEFAULT_TEMPLATE_SETTINGS, type InvoiceTemplateSettings } from "@/lib/types/invoice-template"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
+} from "@/features/invoices/actions-template"
+import { DEFAULT_TEMPLATE_SETTINGS, type InvoiceTemplateSettings, type InvoiceNumberingFormat } from "@/features/invoices/types"
+import { formatInvoiceNumber } from "@/lib/utils/invoice-number"
+import { Button } from "@/shared/components/ui/button"
+import { Input } from "@/shared/components/ui/input"
+import { Label } from "@/shared/components/ui/label"
+import { Switch } from "@/shared/components/ui/switch"
+import { Textarea } from "@/shared/components/ui/textarea"
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from "@/shared/components/ui/card"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/shared/components/ui/select"
 
 export default function InvoiceTemplatePage() {
   const [settings, setSettings] = useState<InvoiceTemplateSettings>(DEFAULT_TEMPLATE_SETTINGS)
@@ -45,6 +47,32 @@ export default function InvoiceTemplatePage() {
     []
   )
 
+  const updateNumbering = useCallback(
+    <K extends keyof InvoiceNumberingFormat>(key: K, value: InvoiceNumberingFormat[K]) => {
+      setSettings((prev) => ({
+        ...prev,
+        numberingFormat: { ...prev.numberingFormat, [key]: value },
+      }))
+    },
+    []
+  )
+
+  const updateTypePrefix = useCallback(
+    (type: "issued" | "received" | "credit_note", value: string) => {
+      setSettings((prev) => ({
+        ...prev,
+        numberingFormat: {
+          ...prev.numberingFormat,
+          typePrefixes: {
+            ...prev.numberingFormat.typePrefixes,
+            [type]: value,
+          },
+        },
+      }))
+    },
+    []
+  )
+
   async function handleSave() {
     setIsSaving(true)
     const result = await updateInvoiceTemplateSettingsAction(settings)
@@ -52,14 +80,14 @@ export default function InvoiceTemplatePage() {
     if (result.error) {
       toast.error(result.error)
     } else {
-      toast.success("Template settings saved")
+      toast.success("Nastavenia šablóny uložené")
     }
   }
 
   if (isLoading) {
     return (
       <div className="mx-auto max-w-4xl py-8">
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-muted-foreground">Načítavam...</p>
       </div>
     )
   }
@@ -67,9 +95,9 @@ export default function InvoiceTemplatePage() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Invoice Template</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Šablóna faktúry</h1>
         <p className="text-muted-foreground">
-          Customize the appearance of your invoice PDFs.
+          Prispôsobte vzhľad vašich faktúr v PDF.
         </p>
       </div>
 
@@ -79,9 +107,9 @@ export default function InvoiceTemplatePage() {
           {/* Accent Color */}
           <Card>
             <CardHeader>
-              <CardTitle>Accent Color</CardTitle>
+              <CardTitle>Farba zvýraznenia</CardTitle>
               <CardDescription>
-                Used for header accents, table borders, and dividers.
+                Používa sa pre zvýraznenie hlavičky, okraje tabuliek a oddeľovače.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -102,7 +130,7 @@ export default function InvoiceTemplatePage() {
           {/* Logo Position */}
           <Card>
             <CardHeader>
-              <CardTitle>Logo Position</CardTitle>
+              <CardTitle>Pozícia loga</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex gap-4">
@@ -126,7 +154,7 @@ export default function InvoiceTemplatePage() {
           {/* Font */}
           <Card>
             <CardHeader>
-              <CardTitle>Font</CardTitle>
+              <CardTitle>Písmo</CardTitle>
             </CardHeader>
             <CardContent>
               <Select
@@ -137,9 +165,9 @@ export default function InvoiceTemplatePage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="default">Default (Helvetica)</SelectItem>
-                  <SelectItem value="serif">Serif (Times Roman)</SelectItem>
-                  <SelectItem value="modern">Modern (Courier)</SelectItem>
+                  <SelectItem value="default">Predvolené (Helvetica)</SelectItem>
+                  <SelectItem value="serif">Pätkové (Times Roman)</SelectItem>
+                  <SelectItem value="modern">Moderné (Courier)</SelectItem>
                 </SelectContent>
               </Select>
             </CardContent>
@@ -148,13 +176,13 @@ export default function InvoiceTemplatePage() {
           {/* Header Layout */}
           <Card>
             <CardHeader>
-              <CardTitle>Header Layout</CardTitle>
+              <CardTitle>Rozloženie hlavičky</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex gap-4">
                 {([
-                  { value: "side-by-side", label: "Side by side" },
-                  { value: "stacked", label: "Stacked" },
+                  { value: "side-by-side", label: "Vedľa seba" },
+                  { value: "stacked", label: "Pod sebou" },
                 ] as const).map((opt) => (
                   <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -175,17 +203,17 @@ export default function InvoiceTemplatePage() {
           {/* Toggle switches */}
           <Card>
             <CardHeader>
-              <CardTitle>Sections</CardTitle>
+              <CardTitle>Sekcie</CardTitle>
               <CardDescription>
-                Choose which sections to show on the invoice.
+                Vyberte, ktoré sekcie zobraziť na faktúre.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {([
-                { key: "showBankDetails", label: "Bank details (IBAN)" },
-                { key: "showQrCode", label: "QR payment code" },
-                { key: "showNotes", label: "Notes section" },
-                { key: "showSignatureLines", label: "Signature lines" },
+                { key: "showBankDetails", label: "Bankové údaje (IBAN)" },
+                { key: "showQrCode", label: "QR platobný kód" },
+                { key: "showNotes", label: "Sekcia poznámok" },
+                { key: "showSignatureLines", label: "Podpisové riadky" },
               ] as const).map(({ key, label }) => (
                 <div key={key} className="flex items-center justify-between">
                   <Label htmlFor={key}>{label}</Label>
@@ -202,23 +230,139 @@ export default function InvoiceTemplatePage() {
           {/* Footer Text */}
           <Card>
             <CardHeader>
-              <CardTitle>Footer Text</CardTitle>
+              <CardTitle>Text päty</CardTitle>
               <CardDescription>
-                Optional text displayed at the bottom of every invoice.
+                Voliteľný text zobrazený v spodnej časti každej faktúry.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Textarea
                 value={settings.footerText}
                 onChange={(e) => update("footerText", e.target.value)}
-                placeholder="e.g. Thank you for your business!"
+                placeholder="napr. Ďakujeme za spoluprácu!"
                 rows={3}
               />
             </CardContent>
           </Card>
 
+          {/* Invoice Numbering Format */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Formát číslovania faktúr</CardTitle>
+              <CardDescription>
+                Nastavte formát automatického číslovania. Zmeny sa prejavia len na nových faktúrach.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Prefix</Label>
+                  <Input
+                    value={settings.numberingFormat.prefix}
+                    onChange={(e) => updateNumbering("prefix", e.target.value)}
+                    placeholder="napr. FV"
+                    maxLength={10}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Oddeľovač</Label>
+                  <Select
+                    value={settings.numberingFormat.separator || "none"}
+                    onValueChange={(v) => updateNumbering("separator", v === "none" ? "" : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="-">Pomlčka (-)</SelectItem>
+                      <SelectItem value="/">Lomka (/)</SelectItem>
+                      <SelectItem value="none">Žiadny</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Formát roku</Label>
+                  <Select
+                    value={settings.numberingFormat.yearFormat}
+                    onValueChange={(v) =>
+                      updateNumbering("yearFormat", v as InvoiceNumberingFormat["yearFormat"])
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full">Plný (2026)</SelectItem>
+                      <SelectItem value="short">Krátky (26)</SelectItem>
+                      <SelectItem value="none">Bez roku</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Počet číslic</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={6}
+                    value={settings.numberingFormat.padding}
+                    onChange={(e) =>
+                      updateNumbering("padding", Math.max(1, Math.min(6, parseInt(e.target.value) || 3)))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="includeType">Rôzne prefixy podľa typu faktúry</Label>
+                <Switch
+                  id="includeType"
+                  checked={settings.numberingFormat.includeType}
+                  onCheckedChange={(v) => updateNumbering("includeType", v)}
+                />
+              </div>
+
+              {settings.numberingFormat.includeType && (
+                <div className="grid grid-cols-3 gap-3">
+                  {([
+                    { type: "issued" as const, label: "Vydaná" },
+                    { type: "received" as const, label: "Prijatá" },
+                    { type: "credit_note" as const, label: "Dobropis" },
+                  ]).map(({ type, label }) => (
+                    <div key={type} className="space-y-1">
+                      <Label className="text-xs">{label}</Label>
+                      <Input
+                        value={settings.numberingFormat.typePrefixes?.[type] ?? ""}
+                        onChange={(e) => updateTypePrefix(type, e.target.value)}
+                        placeholder={type === "issued" ? "FV" : type === "received" ? "PF" : "DN"}
+                        maxLength={10}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Live preview */}
+              <div className="rounded-md border bg-muted/50 p-3">
+                <div className="text-xs text-muted-foreground mb-1">Náhľad:</div>
+                <div className="font-mono text-sm font-medium">
+                  {formatInvoiceNumber(settings.numberingFormat, "issued", 1)}
+                </div>
+                {settings.numberingFormat.includeType && (
+                  <div className="mt-1 space-y-0.5 text-xs text-muted-foreground font-mono">
+                    <div>Vydaná: {formatInvoiceNumber(settings.numberingFormat, "issued", 1)}</div>
+                    <div>Prijatá: {formatInvoiceNumber(settings.numberingFormat, "received", 1)}</div>
+                    <div>Dobropis: {formatInvoiceNumber(settings.numberingFormat, "credit_note", 1)}</div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           <Button onClick={handleSave} disabled={isSaving} className="w-full">
-            {isSaving ? "Saving..." : "Save settings"}
+            {isSaving ? "Ukladám..." : "Uložiť nastavenia"}
           </Button>
         </div>
 
@@ -226,8 +370,8 @@ export default function InvoiceTemplatePage() {
         <div className="lg:sticky lg:top-6 h-fit">
           <Card>
             <CardHeader>
-              <CardTitle>Preview</CardTitle>
-              <CardDescription>Simplified preview of your invoice layout.</CardDescription>
+              <CardTitle>Náhľad</CardTitle>
+              <CardDescription>Zjednodušený náhľad rozloženia faktúry.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="border rounded-lg p-4 bg-white text-xs space-y-3 min-h-[400px]">
@@ -265,14 +409,16 @@ export default function InvoiceTemplatePage() {
                               : "system-ui, sans-serif",
                         }}
                       >
-                        INVOICE
+                        FAKTÚRA
                       </div>
-                      <div className="text-muted-foreground text-[10px]">2026-001</div>
+                      <div className="text-muted-foreground text-[10px]">
+                        {formatInvoiceNumber(settings.numberingFormat, "issued", 1)}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right text-muted-foreground">
-                    <div>Type: Regular</div>
-                    <div>Status: Draft</div>
+                    <div>Typ: Bežná</div>
+                    <div>Stav: Koncept</div>
                   </div>
                 </div>
 
@@ -280,7 +426,7 @@ export default function InvoiceTemplatePage() {
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">
-                      Supplier
+                      Dodávateľ
                     </div>
                     <div className="font-semibold">Company s.r.o.</div>
                     {settings.showBankDetails && (
@@ -291,7 +437,7 @@ export default function InvoiceTemplatePage() {
                   </div>
                   <div>
                     <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">
-                      Customer
+                      Odberateľ
                     </div>
                     <div className="font-semibold">Client a.s.</div>
                   </div>
@@ -303,15 +449,15 @@ export default function InvoiceTemplatePage() {
                     className="flex justify-between font-semibold pb-1 border-b-2 text-[10px]"
                     style={{ borderBottomColor: settings.accentColor }}
                   >
-                    <span>Description</span>
-                    <span>Total</span>
+                    <span>Popis</span>
+                    <span>Spolu</span>
                   </div>
                   <div className="flex justify-between py-1 text-[10px]">
-                    <span>Web development</span>
+                    <span>Vývoj webstránok</span>
                     <span>1 200,00 EUR</span>
                   </div>
                   <div className="flex justify-between py-1 text-[10px] bg-gray-50">
-                    <span>Consulting</span>
+                    <span>Konzultácie</span>
                     <span>800,00 EUR</span>
                   </div>
                 </div>
@@ -321,16 +467,16 @@ export default function InvoiceTemplatePage() {
                   className="text-right font-bold border-t pt-1"
                   style={{ borderTopColor: settings.accentColor }}
                 >
-                  Total: 2 000,00 EUR
+                  Spolu: 2 000,00 EUR
                 </div>
 
                 {/* Preview notes */}
                 {settings.showNotes && (
                   <div className="border rounded p-2 text-[10px] text-muted-foreground">
                     <div className="text-[9px] uppercase tracking-wider font-semibold mb-1">
-                      Note
+                      Poznámka
                     </div>
-                    Sample note text
+                    Ukážkový text poznámky
                   </div>
                 )}
 
@@ -350,10 +496,10 @@ export default function InvoiceTemplatePage() {
                 {settings.showSignatureLines && (
                   <div className="grid grid-cols-2 gap-4 pt-4">
                     <div className="border-t pt-1 text-[10px] text-muted-foreground">
-                      Issued by
+                      Vystavil
                     </div>
                     <div className="border-t pt-1 text-[10px] text-muted-foreground">
-                      Received by
+                      Prevzal
                     </div>
                   </div>
                 )}

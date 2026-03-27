@@ -1,8 +1,7 @@
 "use client"
 
-import { format } from "date-fns"
-import { sk } from "date-fns/locale"
-import { CalendarIcon, Info } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Info } from "lucide-react"
 import type { UseFormReturn } from "react-hook-form"
 import type { WizardFormValues } from "../../schemas"
 import {
@@ -21,62 +20,108 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select"
 import { Switch } from "@/shared/components/ui/switch"
-import { Calendar } from "@/shared/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/shared/components/ui/popover"
-import { Button } from "@/shared/components/ui/button"
-import { cn } from "@/lib/utils"
+
+const MONTHS = [
+  "Januar", "Februar", "Marec", "April", "Maj", "Jun",
+  "Jul", "August", "September", "Oktober", "November", "December",
+]
+
+function getDaysInMonth(month: number, year: number): number {
+  if (!month || !year) return 31
+  return new Date(year, month, 0).getDate()
+}
 
 export function StepBusinessDetails({
   form,
 }: {
   form: UseFormReturn<WizardFormValues>
 }) {
+  // Parse initial value from form into local state for partial selections
+  const currentValue = form.watch("founding_date")
+  const [day, setDay] = useState("")
+  const [month, setMonth] = useState("")
+  const [year, setYear] = useState("")
+
+  // Sync from form value on mount / external changes
+  useEffect(() => {
+    if (currentValue && currentValue.includes("-")) {
+      const [y, m, d] = currentValue.split("-")
+      setDay(String(Number(d)))
+      setMonth(String(Number(m)))
+      setYear(y)
+    }
+  }, [currentValue])
+
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const daysInMonth = getDaysInMonth(Number(month), Number(year))
+
+  // Update form value whenever all three parts are filled
+  function updatePart(part: "day" | "month" | "year", value: string) {
+    const nextDay = part === "day" ? value : day
+    const nextMonth = part === "month" ? value : month
+    const nextYear = part === "year" ? value : year
+
+    if (part === "day") setDay(value)
+    if (part === "month") setMonth(value)
+    if (part === "year") setYear(value)
+
+    if (nextDay && nextMonth && nextYear) {
+      const d = nextDay.padStart(2, "0")
+      const m = nextMonth.padStart(2, "0")
+      form.setValue("founding_date", `${nextYear}-${m}-${d}`, { shouldValidate: true })
+    }
+  }
+
   return (
     <div className="space-y-5">
-      {/* Founding date */}
+      {/* Founding date - 3 selects */}
       <FormField
         control={form.control}
         name="founding_date"
-        render={({ field }) => (
-          <FormItem className="flex flex-col">
+        render={() => (
+          <FormItem>
             <FormLabel>Datum zalozenia zivnosti</FormLabel>
-            <Popover>
-              <PopoverTrigger asChild>
-                <FormControl>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full pl-3 text-left font-normal",
-                      !field.value && "text-muted-foreground"
-                    )}
-                  >
-                    {field.value
-                      ? format(new Date(field.value), "d. MMMM yyyy", {
-                          locale: sk,
-                        })
-                      : "Vyberte datum"}
-                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                  </Button>
-                </FormControl>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={field.value ? new Date(field.value) : undefined}
-                  onSelect={(date) => {
-                    if (date) {
-                      const iso = format(date, "yyyy-MM-dd")
-                      field.onChange(iso)
-                    }
-                  }}
-                  disabled={(date) => date > new Date()}
-                />
-              </PopoverContent>
-            </Popover>
+            <div className="grid grid-cols-3 gap-3">
+              <Select value={day} onValueChange={(v) => updatePart("day", v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Den" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: daysInMonth }, (_, i) => (
+                    <SelectItem key={i + 1} value={String(i + 1)}>
+                      {i + 1}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={month} onValueChange={(v) => updatePart("month", v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Mesiac" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTHS.map((name, i) => (
+                    <SelectItem key={i + 1} value={String(i + 1)}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={year} onValueChange={(v) => updatePart("year", v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Rok" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 35 }, (_, i) => currentYear - i).map((year) => (
+                    <SelectItem key={year} value={String(year)}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <FormMessage />
           </FormItem>
         )}

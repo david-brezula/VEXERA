@@ -12,8 +12,8 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { createTemplate, listTemplates } from "@/lib/services/recurring-invoice.service"
-import { writeAuditLog } from "@/lib/services/audit.server"
+import { createTemplate, listTemplates } from "@/features/invoices/recurring.service"
+import { writeAuditLog } from "@/shared/services/audit.server"
 
 const ItemSchema = z.object({
   description: z.string().min(1),

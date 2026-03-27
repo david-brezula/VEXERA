@@ -16,7 +16,7 @@ import {
   saveMessage,
   buildOrgContext,
   fetchRelevantData,
-} from "@/lib/services/ai-chat.service"
+} from "@/features/chat/service"
 
 const ChatSchema = z.object({
   organization_id: z.string().uuid(),
@@ -177,8 +177,7 @@ ${relevantData ? `\nRelevant financial data:\n${relevantData}` : ""}`
 
             if (!(sessionData as unknown as { title: string | null })?.title) {
               const title = message.length > 50 ? message.slice(0, 47) + "..." : message
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              await (capturedSupabase.from("chat_sessions" as any) as any)
+              await capturedSupabase.from("chat_sessions")
                 .update({ title })
                 .eq("id", capturedSessionId)
             }

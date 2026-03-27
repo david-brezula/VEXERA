@@ -84,9 +84,7 @@ export async function GET(request: Request) {
       )
     }
 
-    // Build query — bank_transactions is not in placeholder types, use cast
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let query = (supabase.from("bank_transactions" as any) as any)
+    let query = supabase.from("bank_transactions")
       .select("*", { count: "exact" })
       .eq("organization_id", organization_id)
       .order("transaction_date", { ascending: false })

@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { PLPageClient } from "@/components/reports/pl-page-client"
+import { PLPageClient } from "@/features/reports/components/pl-page-client"
 
 export const metadata = {
   title: "Project P&L | Vexera",

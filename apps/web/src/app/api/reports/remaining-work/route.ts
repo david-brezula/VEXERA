@@ -7,7 +7,7 @@
 
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { generateRemainingWork } from "@/lib/services/reports/remaining-work.service"
+import { generateRemainingWork } from "@/features/reports/services/remaining-work.service"
 
 export async function GET(request: Request) {
   try {

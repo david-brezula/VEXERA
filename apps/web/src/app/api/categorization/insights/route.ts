@@ -7,7 +7,8 @@
 
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { getCorrectionInsights } from "@/lib/services/categorization.service"
+import { getCorrectionInsights } from "@/features/rules/categorization.service"
+import { verifyOrgMembership, forbiddenResponse } from "@/shared/lib/api-utils"
 
 export async function GET(request: Request) {
   try {
@@ -20,6 +21,9 @@ export async function GET(request: Request) {
     if (!organizationId) {
       return NextResponse.json({ error: "organization_id is required" }, { status: 400 })
     }
+
+    const membership = await verifyOrgMembership(supabase, user.id, organizationId)
+    if (!membership) return forbiddenResponse()
 
     const insights = await getCorrectionInsights(supabase, organizationId)
     return NextResponse.json({ data: insights })

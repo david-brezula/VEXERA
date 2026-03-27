@@ -1,14 +1,18 @@
-import { Sidebar } from "@/components/layout/sidebar"
-import { Header } from "@/components/layout/header"
+import { Sidebar } from "@/shared/components/layout/sidebar"
+import { Header } from "@/shared/components/layout/header"
+import { ErrorBoundary } from "@/shared/components/error-boundary"
+import { getActiveOrg } from "@/features/settings/data-org"
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const org = await getActiveOrg()
+
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      <Sidebar organizationType={org?.organization_type} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header />
         <main className="flex-1 overflow-y-auto p-6 lg:p-8 relative">
@@ -18,7 +22,9 @@ export default function DashboardLayout({
             <div className="absolute top-1/3 -left-20 h-60 w-60 rounded-full bg-violet-500/8 blur-3xl" />
             <div className="absolute bottom-20 right-1/4 h-48 w-48 rounded-full bg-emerald-500/8 blur-3xl" />
           </div>
-          <div className="relative z-10">{children}</div>
+          <div className="relative z-10">
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </div>
         </main>
       </div>
     </div>

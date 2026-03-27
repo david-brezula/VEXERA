@@ -8,9 +8,9 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
-import { loginSchema, type LoginFormValues } from "@/lib/validations/auth.schema"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { loginSchema, type LoginFormValues } from "@/features/auth/schemas"
+import { Button } from "@/shared/components/ui/button"
+import { Input } from "@/shared/components/ui/input"
 import {
   Card,
   CardContent,
@@ -18,7 +18,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from "@/shared/components/ui/card"
 import {
   Form,
   FormControl,
@@ -26,7 +26,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
+} from "@/shared/components/ui/form"
 
 function LoginForm() {
   const router = useRouter()
@@ -59,7 +59,7 @@ function LoginForm() {
       router.push(redirect || "/dashboard")
       router.refresh()
     } catch {
-      toast.error("An unexpected error occurred")
+      toast.error("Nastala neočakávaná chyba")
     } finally {
       setIsLoading(false)
     }
@@ -68,8 +68,8 @@ function LoginForm() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Welcome back</CardTitle>
-        <CardDescription>Sign in to your Vexera account</CardDescription>
+        <CardTitle className="text-2xl">Vitajte späť</CardTitle>
+        <CardDescription>Prihláste sa do svojho Vexera účtu</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -79,11 +79,11 @@ function LoginForm() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>E-mail</FormLabel>
                   <FormControl>
                     <Input
                       type="email"
-                      placeholder="your@email.com"
+                      placeholder="vas@email.sk"
                       autoComplete="email"
                       {...field}
                     />
@@ -97,11 +97,11 @@ function LoginForm() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>Heslo</FormLabel>
                   <FormControl>
                     <Input
                       type="password"
-                      placeholder="Enter your password"
+                      placeholder="Zadajte heslo"
                       autoComplete="current-password"
                       {...field}
                     />
@@ -111,16 +111,16 @@ function LoginForm() {
               )}
             />
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Signing in..." : "Sign in"}
+              {isLoading ? "Prihlasovanie..." : "Prihlásiť sa"}
             </Button>
           </form>
         </Form>
       </CardContent>
       <CardFooter className="justify-center">
         <p className="text-sm text-muted-foreground">
-          Don&apos;t have an account?{" "}
+          Nemáte účet?{" "}
           <Link href="/register" className="text-primary hover:underline">
-            Sign up
+            Registrovať sa
           </Link>
         </p>
       </CardFooter>

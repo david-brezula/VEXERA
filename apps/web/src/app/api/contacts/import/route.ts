@@ -7,7 +7,8 @@
 
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { importFromInvoices } from "@/lib/services/contacts.service"
+import { importFromInvoices } from "@/features/contacts/service"
+import { verifyOrgMembership, forbiddenResponse } from "@/shared/lib/api-utils"
 
 export async function POST(request: Request) {
   try {
@@ -20,6 +21,9 @@ export async function POST(request: Request) {
     if (!organizationId) {
       return NextResponse.json({ error: "organization_id is required" }, { status: 400 })
     }
+
+    const membership = await verifyOrgMembership(supabase, user.id, organizationId)
+    if (!membership) return forbiddenResponse()
 
     const created = await importFromInvoices(supabase, organizationId)
     return NextResponse.json({ data: { created } })

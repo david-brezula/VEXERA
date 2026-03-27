@@ -4,26 +4,26 @@ import { useTransition } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSupabase } from "@/providers/supabase-provider"
 import { useOrganization } from "@/providers/organization-provider"
-import { useCurrentMemberRole } from "@/hooks/use-current-member-role"
-import { InviteMemberDialog } from "@/components/members/invite-member-dialog"
+import { useCurrentMemberRole } from "@/shared/hooks/use-current-member-role"
+import { InviteMemberDialog } from "@/features/settings/components/members/invite-member-dialog"
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+} from "@/shared/components/ui/card"
+import { Badge } from "@/shared/components/ui/badge"
+import { Button } from "@/shared/components/ui/button"
+import { Skeleton } from "@/shared/components/ui/skeleton"
+import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/shared/components/ui/dropdown-menu"
 import { toast } from "sonner"
 import {
   updateMemberRoleAction,
@@ -31,8 +31,8 @@ import {
   revokeInvitationAction,
   resendInvitationAction,
   revokeAccountantAccessAction,
-} from "@/lib/actions/members"
-import { InviteAccountantDialog } from "@/components/members/invite-accountant-dialog"
+} from "@/features/settings/actions-members"
+import { InviteAccountantDialog } from "@/features/settings/components/members/invite-accountant-dialog"
 import { CrownIcon, MoreHorizontalIcon, ShieldCheckIcon } from "lucide-react"
 
 type MemberProfile = {
@@ -94,7 +94,7 @@ export default function MembersPage() {
     queryKey: ["members", activeOrg?.id],
     queryFn: async () => {
       if (!activeOrg) return []
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("organization_members")
         .select(
           `
@@ -116,7 +116,7 @@ export default function MembersPage() {
     queryKey: ["invitations", activeOrg?.id],
     queryFn: async () => {
       if (!activeOrg) return []
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("invitations")
         .select(
           `
@@ -144,7 +144,7 @@ export default function MembersPage() {
     queryKey: ["accountant-clients", activeOrg?.id],
     queryFn: async () => {
       if (!activeOrg) return []
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("accountant_clients")
         .select(
           `
@@ -165,13 +165,13 @@ export default function MembersPage() {
   })
 
   function handleRevokeAccountant(accountantClientId: string, name: string) {
-    if (!window.confirm(`Are you sure you want to revoke access for ${name}?`)) return
+    if (!window.confirm(`Naozaj chcete zrušiť prístup pre ${name}?`)) return
     startTransition(async () => {
       const result = await revokeAccountantAccessAction(accountantClientId)
       if (result.error) {
         toast.error(result.error)
       } else {
-        toast.success("Accountant access revoked")
+        toast.success("Prístup účtovníka zrušený")
         queryClient.invalidateQueries({ queryKey: ["accountant-clients", activeOrg?.id] })
       }
     })
@@ -183,7 +183,7 @@ export default function MembersPage() {
       if (result.error) {
         toast.error(result.error)
       } else {
-        toast.success(`Role updated to ${newRole}`)
+        toast.success(`Rola zmenená na ${newRole}`)
         queryClient.invalidateQueries({ queryKey: ["members", activeOrg?.id] })
         queryClient.invalidateQueries({ queryKey: ["member-role"] })
       }
@@ -191,13 +191,13 @@ export default function MembersPage() {
   }
 
   function handleRemoveMember(memberId: string, name: string) {
-    if (!window.confirm(`Are you sure you want to remove ${name}?`)) return
+    if (!window.confirm(`Naozaj chcete odstrániť ${name}?`)) return
     startTransition(async () => {
       const result = await removeMemberAction(memberId)
       if (result.error) {
         toast.error(result.error)
       } else {
-        toast.success("Member removed")
+        toast.success("Člen odstránený")
         queryClient.invalidateQueries({ queryKey: ["members", activeOrg?.id] })
       }
     })
@@ -209,7 +209,7 @@ export default function MembersPage() {
       if (result.error) {
         toast.error(result.error)
       } else {
-        toast.success("Invitation revoked")
+        toast.success("Pozvánka zrušená")
         queryClient.invalidateQueries({
           queryKey: ["invitations", activeOrg?.id],
         })
@@ -223,7 +223,7 @@ export default function MembersPage() {
       if (result.error) {
         toast.error(result.error)
       } else {
-        toast.success("Invitation resent")
+        toast.success("Pozvánka opätovne odoslaná")
         queryClient.invalidateQueries({
           queryKey: ["invitations", activeOrg?.id],
         })
@@ -232,7 +232,7 @@ export default function MembersPage() {
   }
 
   if (!activeOrg) {
-    return <p className="text-muted-foreground">No organization selected.</p>
+    return <p className="text-muted-foreground">Nie je vybraná organizácia.</p>
   }
 
   const isLoading = membersLoading || roleLoading
@@ -241,9 +241,9 @@ export default function MembersPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Members</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Členovia</h1>
           <p className="text-muted-foreground">
-            Manage who has access to {activeOrg.name}
+            Spravujte prístupy k {activeOrg.name}
           </p>
         </div>
         {isAdmin && <InviteMemberDialog />}
@@ -251,9 +251,9 @@ export default function MembersPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Team members</CardTitle>
+          <CardTitle>Členovia tímu</CardTitle>
           <CardDescription>
-            People who have access to this organization.
+            Ľudia s prístupom k tejto organizácii.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -267,7 +267,7 @@ export default function MembersPage() {
             <div className="space-y-3">
               {members?.map((member) => {
                 const profile = member.profiles
-                const name = profile?.full_name ?? "Unnamed"
+                const name = profile?.full_name ?? "Bez mena"
                 const email = profile?.email ?? ""
                 const isOwnerMember = member.role === "owner"
 
@@ -313,7 +313,7 @@ export default function MembersPage() {
                               disabled={isPending}
                             >
                               <MoreHorizontalIcon className="h-4 w-4" />
-                              <span className="sr-only">Actions</span>
+                              <span className="sr-only">Akcie</span>
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
@@ -326,8 +326,8 @@ export default function MembersPage() {
                               }
                             >
                               {member.role === "admin"
-                                ? "Change to Member"
-                                : "Change to Admin"}
+                                ? "Zmeniť na člena"
+                                : "Zmeniť na administrátora"}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
@@ -336,7 +336,7 @@ export default function MembersPage() {
                                 handleRemoveMember(member.id, name)
                               }
                             >
-                              Remove member
+                              Odstrániť člena
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -347,7 +347,7 @@ export default function MembersPage() {
               })}
               {members?.length === 0 && (
                 <p className="text-muted-foreground text-sm">
-                  No members found.
+                  Žiadni členovia.
                 </p>
               )}
             </div>
@@ -358,9 +358,9 @@ export default function MembersPage() {
       {isAdmin && (invitations?.length ?? 0) > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Pending invitations</CardTitle>
+            <CardTitle>Čakajúce pozvánky</CardTitle>
             <CardDescription>
-              Invitations that have not yet been accepted.
+              Pozvánky, ktoré ešte neboli prijaté.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -397,7 +397,7 @@ export default function MembersPage() {
                         disabled={isPending}
                         onClick={() => handleResendInvitation(invitation.id)}
                       >
-                        Resend
+                        Poslať znova
                       </Button>
                       <Button
                         variant="ghost"
@@ -406,7 +406,7 @@ export default function MembersPage() {
                         className="text-destructive"
                         onClick={() => handleRevokeInvitation(invitation.id)}
                       >
-                        Revoke
+                        Zrušiť
                       </Button>
                     </div>
                   </div>
@@ -424,10 +424,10 @@ export default function MembersPage() {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <ShieldCheckIcon className="h-5 w-5" />
-                  Your Accountant
+                  Váš účtovník
                 </CardTitle>
                 <CardDescription>
-                  External accountant with access to your organization.
+                  Externý účtovník s prístupom k vašej organizácii.
                 </CardDescription>
               </div>
               {isAdmin && (!accountantClients || accountantClients.length === 0) && (
@@ -442,7 +442,7 @@ export default function MembersPage() {
               <div className="space-y-3">
                 {accountantClients.map((ac) => {
                   const profile = ac.profiles
-                  const name = profile?.full_name ?? "Unnamed"
+                  const name = profile?.full_name ?? "Bez mena"
                   const email = profile?.email ?? ""
                   return (
                     <div
@@ -464,7 +464,7 @@ export default function MembersPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline">Accountant</Badge>
+                        <Badge variant="outline">Účtovník</Badge>
                         {isAdmin && (
                           <Button
                             variant="ghost"
@@ -473,7 +473,7 @@ export default function MembersPage() {
                             className="text-destructive"
                             onClick={() => handleRevokeAccountant(ac.id, name)}
                           >
-                            Revoke Access
+                            Zrušiť prístup
                           </Button>
                         )}
                       </div>
@@ -483,7 +483,7 @@ export default function MembersPage() {
               </div>
             ) : (
               <p className="text-muted-foreground text-sm">
-                No accountant linked. Invite an accountant to give them access to your financial data.
+                Žiadny účtovník nie je prepojený. Pozvite účtovníka, aby mal prístup k vašim finančným dátam.
               </p>
             )}
           </CardContent>

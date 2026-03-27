@@ -5,12 +5,12 @@
 
 ## 1. WHAT IS VEXERA?
 
-VEXERA is a **multi-tenant accounting SaaS for the Slovak market** — a cloud automation layer that sits in front of legacy accounting systems (Pohoda / Money S3 / KROS). It automates routine accounting work and gives business owners a real-time financial picture.
+VEXERA is a **standalone multi-tenant cloud accounting platform for the Slovak market** — a complete replacement for legacy desktop accounting software (Pohoda, Money S3, KROS, Omega). It combines full accounting functionality with AI-powered automation in a modern cloud-native architecture.
 
-**One-liner:** Automate 60–80% of routine accounting work while keeping the accountant in control.
+**One-liner:** The modern cloud accounting platform that replaces legacy Slovak accounting software.
 
 **Repository:** `github.com/david-brezula/VEXERA`
-**Branch:** `Phase-1`
+**Branch:** `feat/role-based-onboarding`
 
 ---
 

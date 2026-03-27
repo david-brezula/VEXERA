@@ -7,7 +7,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { writeAuditLog } from "@/lib/services/audit.server"
+import { writeAuditLog } from "@/shared/services/audit.server"
 import type { RuleOperator, RuleActionType } from "@vexera/types"
 
 const OperatorSchema: z.ZodType<RuleOperator> = z.enum([
@@ -25,14 +25,14 @@ const ActionTypeSchema: z.ZodType<RuleActionType> = z.enum([
 ])
 
 const ConditionSchema = z.object({
-  field: z.string().min(1),
+  field: z.string().min(1).max(100),
   operator: OperatorSchema,
-  value: z.union([z.string(), z.number()]),
+  value: z.union([z.string().max(500), z.number()]),
 })
 
 const ActionSchema = z.object({
   type: ActionTypeSchema,
-  value: z.string().min(1),
+  value: z.string().min(1).max(500),
 })
 
 const UpdateRuleSchema = z.object({
@@ -120,8 +120,7 @@ export async function PATCH(request: Request, { params }: Params) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.from("rules" as any) as any)
+    const { data, error } = await supabase.from("rules")
       .update(parsed.data)
       .eq("id", id)
       .eq("organization_id", rule.organization_id)

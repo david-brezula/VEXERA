@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { ProductsPageClient } from "@/components/products/products-page-client"
+import { ProductsPageClient } from "@/features/products/components/products-page-client"
 
 export const metadata = {
   title: "Products | Vexera",

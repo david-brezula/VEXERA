@@ -11,8 +11,8 @@
 
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { generateCategoryReport } from "@/lib/services/reports/category-report.service"
-import { getCachedOrGenerate } from "@/lib/services/reports/report-cache"
+import { generateCategoryReport } from "@/features/reports/services/category-report.service"
+import { getCachedOrGenerate } from "@/features/reports/services/report-cache"
 
 export async function GET(request: Request) {
   try {

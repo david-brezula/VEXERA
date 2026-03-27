@@ -23,7 +23,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { writeAuditLog } from "@/lib/services/audit.server"
+import { writeAuditLog } from "@/shared/services/audit.server"
 import type { RuleOperator, RuleActionType } from "@vexera/types"
 
 // ─── Validation schemas ───────────────────────────────────────────────────────
@@ -135,8 +135,7 @@ export async function POST(request: Request) {
 
     if (!membership) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.from("rules" as any) as any)
+    const { data, error } = await supabase.from("rules")
       .insert({
         organization_id,
         created_by: user.id,

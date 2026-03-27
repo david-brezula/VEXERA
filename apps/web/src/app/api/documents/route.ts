@@ -30,8 +30,8 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { createDocument, listDocuments } from "@/lib/services/document.service"
-import { writeAuditLog } from "@/lib/services/audit.server"
+import { createDocument, listDocuments } from "@/features/documents/service"
+import { writeAuditLog } from "@/shared/services/audit.server"
 
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",

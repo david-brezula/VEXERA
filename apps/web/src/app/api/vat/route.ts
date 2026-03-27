@@ -20,10 +20,10 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import {
-  calculateVatReturn,
+  calculateQuarterVatReturn,
   getCurrentQuarterVat,
   getVatTimeline,
-} from "@/lib/services/vat.service"
+} from "@/features/reports/vat/service"
 
 // ─── GET ────────────────────────────────────────────────────────────────────
 
@@ -71,7 +71,7 @@ export async function GET(request: Request) {
           { status: 400 },
         )
       }
-      current = await calculateVatReturn(supabase, organizationId, year, quarter)
+      current = await calculateQuarterVatReturn(supabase, organizationId, year, quarter)
     } else {
       current = await getCurrentQuarterVat(supabase, organizationId)
     }
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const vatReturn = await calculateVatReturn(
+    const vatReturn = await calculateQuarterVatReturn(
       supabase,
       organizationId,
       year,

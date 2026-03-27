@@ -27,7 +27,8 @@ import {
   listNotifications,
   markNotificationsRead,
   countUnreadNotifications,
-} from "@/lib/services/notification.service"
+} from "@/features/notifications/service"
+import { verifyOrgMembership, forbiddenResponse } from "@/shared/lib/api-utils"
 
 // ─── GET ──────────────────────────────────────────────────────────────────────
 
@@ -43,7 +44,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "organization_id is required" }, { status: 400 })
     }
 
-    // RLS enforces user_id = auth.uid() — no explicit membership check needed here
+    // Verify user belongs to the organization (defense in depth alongside RLS)
+    const membership = await verifyOrgMembership(supabase, user.id, organizationId)
+    if (!membership) return forbiddenResponse()
+
     const [notifications, unreadCount] = await Promise.all([
       listNotifications(supabase, {
         organizationId,
@@ -66,7 +70,7 @@ export async function GET(request: Request) {
 // ─── PATCH ────────────────────────────────────────────────────────────────────
 
 const PatchByIdsSchema = z.object({
-  ids: z.array(z.string().uuid()).min(1),
+  ids: z.array(z.string()).min(1),
 })
 
 const PatchAllSchema = z.object({
@@ -89,11 +93,14 @@ export async function PATCH(request: Request) {
     }
 
     if ("all" in parsed.data) {
+      // Verify org membership before bulk update
+      const mem = await verifyOrgMembership(supabase, user.id, parsed.data.organization_id)
+      if (!mem) return forbiddenResponse()
       // Mark all unread for this user+org as read
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: unread } = await (supabase.from("notifications" as any) as any)
+      const { data: unread } = await supabase.from("notifications")
         .select("id")
         .eq("organization_id", parsed.data.organization_id)
+        .eq("user_id", user.id)
         .eq("is_read", false)
 
       const ids = (unread ?? []).map((n: { id: string }) => n.id)

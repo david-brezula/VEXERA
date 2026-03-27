@@ -4,7 +4,7 @@
 
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { getSessionMessages } from "@/lib/services/ai-chat.service"
+import { getSessionMessages } from "@/features/chat/service"
 
 export async function GET(
   _request: Request,

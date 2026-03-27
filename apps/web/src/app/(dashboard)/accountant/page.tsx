@@ -1,10 +1,11 @@
 import { Suspense } from "react"
-import { getActiveOrgId } from "@/lib/data/org"
-import { getAccountantDashboard } from "@/lib/data/accountant-dashboard"
-import { AccountantDashboard } from "@/components/dashboard/accountant-dashboard"
-import { Skeleton } from "@/components/ui/skeleton"
+import { redirect } from "next/navigation"
+import { getActiveOrg } from "@/features/settings/data-org"
+import { getAccountantDashboard } from "@/features/reports/dashboard/accountant-data"
+import { AccountantDashboard } from "@/features/reports/dashboard/components/accountant-dashboard"
+import { Skeleton } from "@/shared/components/ui/skeleton"
 
-export const metadata = { title: "Accountant Dashboard | Vexera" }
+export const metadata = { title: "Prehľad účtovníka | Vexera" }
 
 async function DashboardContent({ orgId }: { orgId: string }) {
   const data = await getAccountantDashboard(orgId)
@@ -12,22 +13,28 @@ async function DashboardContent({ orgId }: { orgId: string }) {
 }
 
 export default async function AccountantDashboardPage() {
-  const orgId = await getActiveOrgId()
+  const org = await getActiveOrg()
 
-  if (!orgId) {
+  if (!org) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <p className="text-muted-foreground">Select an organization to view your client dashboard</p>
+        <p className="text-muted-foreground">Vyberte organizáciu pre zobrazenie prehľadu klientov</p>
       </div>
     )
   }
 
+  if (org.organization_type !== "accounting_firm") {
+    redirect("/dashboard")
+  }
+
+  const orgId = org.id
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Accountant Dashboard</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Prehľad účtovníka</h1>
         <p className="text-muted-foreground mt-1">
-          Monitor all your clients at a glance
+          Sledujte všetkých klientov na jednom mieste
         </p>
       </div>
       <Suspense fallback={<Skeleton className="h-96 w-full rounded-xl" />}>

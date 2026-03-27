@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { ArchiveSettings } from "@/components/settings/archive-settings"
+import { ArchiveSettings } from "@/features/settings/components/archive-settings"
 
 export const metadata = {
   title: "Archive Settings | Vexera",

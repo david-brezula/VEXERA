@@ -15,7 +15,7 @@ import {
   getCashFlowSummary,
   forecast,
   detectRecurringPatterns,
-} from "@/lib/services/cashflow.service"
+} from "@/features/reports/cashflow/service"
 
 export async function GET(request: Request) {
   try {

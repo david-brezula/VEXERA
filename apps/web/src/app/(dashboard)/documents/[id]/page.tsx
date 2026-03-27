@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
-import { getDocument, getDocumentComments, getAuditLogsForDocument } from "@/lib/data/documents"
-import { DocumentDetailClient } from "@/components/documents/document-detail-client"
+import { getDocument, getDocumentComments, getAuditLogsForDocument } from "@/features/documents/data"
+import { DocumentDetailClient } from "@/features/documents/components/document-detail-client"
 
 export default async function DocumentDetailPage({
   params,
