@@ -1,4 +1,4 @@
-import { Skeleton } from "@/components/ui/skeleton"
+import { Skeleton } from "@/shared/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -6,7 +6,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/shared/components/ui/table"
 
 const COLUMN_WIDTHS = ["w-10", "w-20", "w-48", "w-24", "w-24", "w-20", "w-16", "w-8"]
 

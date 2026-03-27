@@ -7,9 +7,9 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { InviteAcceptClient } from "@/components/members/invite-accept-client"
+} from "@/shared/components/ui/card"
+import { Button } from "@/shared/components/ui/button"
+import { InviteAcceptClient } from "@/features/settings/components/members/invite-accept-client"
 
 export default async function InvitePage({
   params,
@@ -19,11 +19,22 @@ export default async function InvitePage({
   const { token } = await params
   const supabase = await createClient()
 
-  const { data: invitation, error } = await (supabase as any)
+  const { data: invitation, error } = await supabase
     .from("invitations")
-    .select("id, invited_email, role, status, expires_at, organizations!organization_id(name)")
+    .select("id, invited_email, role, status, expires_at, organization_id")
     .eq("token", token)
     .single()
+
+  // Fetch organization name separately (join not available in strict types)
+  let orgName = "Unknown organization"
+  if (invitation) {
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("name")
+      .eq("id", invitation.organization_id)
+      .single()
+    if (org) orgName = org.name
+  }
 
   if (error || !invitation) {
     return (
@@ -84,7 +95,7 @@ export default async function InvitePage({
     )
   }
 
-  const organizationName = invitation.organizations?.name ?? "Unknown organization"
+  const organizationName = orgName
 
   return (
     <InviteAcceptClient

@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 
-import { RulesPageClient } from "@/components/rules/rules-page-client"
+import { RulesPageClient } from "@/features/rules/components/rules-page-client"
 import RulesLoading from "./loading"
 
 export const metadata = {
@@ -11,9 +11,9 @@ export default function RulesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Rules</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Pravidlá</h1>
         <p className="text-muted-foreground mt-1">
-          Automate categorization of documents and transactions
+          Automatizujte kategorizáciu dokladov a transakcií
         </p>
       </div>
 

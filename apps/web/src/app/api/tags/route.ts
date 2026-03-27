@@ -12,8 +12,8 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { createTag, listTags } from "@/lib/services/tags.service"
-import type { TagType } from "@/lib/services/tags.service"
+import { createTag, listTags } from "@/shared/services/tags.service"
+import type { TagType } from "@/shared/services/tags.service"
 
 const CreateTagSchema = z.object({
   organization_id: z.string().uuid(),

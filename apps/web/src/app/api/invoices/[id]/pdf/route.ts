@@ -2,17 +2,25 @@ import { NextResponse } from "next/server"
 import { renderToBuffer } from "@react-pdf/renderer"
 import { createElement } from "react"
 import QRCode from "qrcode"
-import { getInvoice } from "@/lib/data/invoices"
-import { InvoicePdfDocument } from "@/components/invoices/invoice-pdf"
+import { createClient } from "@/lib/supabase/server"
+import { getInvoice } from "@/features/invoices/data"
+import { InvoicePdfDocument } from "@/features/invoices/components/invoice-pdf"
 import { encodePayBySquare } from "@/lib/pay-by-square"
-import { getInvoiceTemplateSettingsAction } from "@/lib/actions/invoice-template"
-import type { InvoiceTemplateSettings } from "@/lib/types/invoice-template"
+import { getInvoiceTemplateSettingsAction } from "@/features/invoices/actions-template"
+import type { InvoiceTemplateSettings } from "@/features/invoices/types"
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Verify the user is authenticated before serving PDF
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const { id } = await params
     const invoice = await getInvoice(id)
     if (!invoice) {

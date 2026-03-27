@@ -8,9 +8,9 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
-import { registerSchema, type RegisterFormValues } from "@/lib/validations/auth.schema"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { registerSchema, type RegisterFormValues } from "@/features/auth/schemas"
+import { Button } from "@/shared/components/ui/button"
+import { Input } from "@/shared/components/ui/input"
 import {
   Card,
   CardContent,
@@ -18,7 +18,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from "@/shared/components/ui/card"
 import {
   Form,
   FormControl,
@@ -26,7 +26,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
+} from "@/shared/components/ui/form"
 
 function RegisterForm() {
   const router = useRouter()
@@ -67,7 +67,7 @@ function RegisterForm() {
       toast.success("Ucet vytvoreny!")
       router.push(redirect || "/onboarding")
     } catch {
-      toast.error("An unexpected error occurred")
+      toast.error("Nastala neočakávaná chyba")
     } finally {
       setIsLoading(false)
     }
@@ -76,9 +76,9 @@ function RegisterForm() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Create an account</CardTitle>
+        <CardTitle className="text-2xl">Vytvorte si účet</CardTitle>
         <CardDescription>
-          Get started with Vexera invoice management
+          Začnite s fakturáciou vo Vexere
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -89,7 +89,7 @@ function RegisterForm() {
               name="fullName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Full name</FormLabel>
+                  <FormLabel>Celé meno</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="Ján Novák"
@@ -106,11 +106,11 @@ function RegisterForm() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>E-mail</FormLabel>
                   <FormControl>
                     <Input
                       type="email"
-                      placeholder="your@email.com"
+                      placeholder="vas@email.sk"
                       autoComplete="email"
                       {...field}
                     />
@@ -124,11 +124,11 @@ function RegisterForm() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>Heslo</FormLabel>
                   <FormControl>
                     <Input
                       type="password"
-                      placeholder="At least 8 characters"
+                      placeholder="Minimálne 8 znakov"
                       autoComplete="new-password"
                       {...field}
                     />
@@ -142,11 +142,11 @@ function RegisterForm() {
               name="confirmPassword"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Confirm password</FormLabel>
+                  <FormLabel>Potvrdenie hesla</FormLabel>
                   <FormControl>
                     <Input
                       type="password"
-                      placeholder="Repeat your password"
+                      placeholder="Zopakujte heslo"
                       autoComplete="new-password"
                       {...field}
                     />
@@ -156,16 +156,16 @@ function RegisterForm() {
               )}
             />
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Creating account..." : "Create account"}
+              {isLoading ? "Vytváram účet..." : "Vytvoriť účet"}
             </Button>
           </form>
         </Form>
       </CardContent>
       <CardFooter className="justify-center">
         <p className="text-sm text-muted-foreground">
-          Already have an account?{" "}
+          Už máte účet?{" "}
           <Link href="/login" className="text-primary hover:underline">
-            Sign in
+            Prihlásiť sa
           </Link>
         </p>
       </CardFooter>

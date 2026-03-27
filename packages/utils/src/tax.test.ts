@@ -387,3 +387,82 @@ describe("calculateFreelancerTaxV2", () => {
     expect(result.nezdanitelnaCiastka).toBe(5966.73)
   })
 })
+
+// ============================================================
+// PERSONAL STATUS EXEMPTION TESTS
+// ============================================================
+
+describe("calculateInsurance — personal status exemptions", () => {
+  it("pensioner: social insurance is 0 regardless of income", () => {
+    const profile = makeProfile({ isPensioner: true })
+    const result = calculateInsurance(30000, 0, profile, leg)
+    expect(result.socialMonthly).toBe(0)
+    expect(result.healthMonthly).toBeGreaterThan(0)
+  })
+
+  it("pensioner: health insurance still applies at minimum", () => {
+    const profile = makeProfile({ isPensioner: true })
+    const result = calculateInsurance(30000, 0, profile, leg)
+    expect(result.healthMonthly).toBeGreaterThanOrEqual(leg.insurance.minHealthMonthly)
+  })
+
+  it("student: health insurance has no minimum floor", () => {
+    const profile = makeProfile({ isStudent: true })
+    const result = calculateInsurance(0, 0, profile, leg)
+    // Zero income falls into osobitný základ path: raw health = 396.24 * 0.16 = 63.4
+    // Without skipHealthMinimum this would be floored to minHealthMonthly (121.92)
+    // With student flag, the raw value is used instead (no floor)
+    expect(result.healthMonthly).toBeLessThan(leg.insurance.minHealthMonthly)
+  })
+
+  it("student with standard income: health calculated from base", () => {
+    const profile = makeProfile({ isStudent: true })
+    const result = calculateInsurance(20000, 0, profile, leg)
+    expect(result.healthMonthly).toBeGreaterThan(0)
+  })
+
+  it("has_other_employment: health minimum does not apply", () => {
+    const profile = makeProfile({ hasOtherEmployment: true })
+    const result = calculateInsurance(0, 0, profile, leg)
+    // Raw health from osobitný základ (63.4) is below the normal minimum (121.92)
+    expect(result.healthMonthly).toBeLessThan(leg.insurance.minHealthMonthly)
+  })
+
+  it("student + pensioner combo: social=0, health has no floor", () => {
+    const profile = makeProfile({ isStudent: true, isPensioner: true })
+    const result = calculateInsurance(0, 0, profile, leg)
+    expect(result.socialMonthly).toBe(0)
+    // Raw health from osobitný základ, no minimum floor applied
+    expect(result.healthMonthly).toBeLessThan(leg.insurance.minHealthMonthly)
+  })
+
+  it("first-year pensioner: social=0, health=minimum", () => {
+    const profile = makeProfile({ isPensioner: true, isFirstYear: true, hasSocialInsurance: false })
+    const result = calculateInsurance(20000, 0, profile, leg)
+    expect(result.socialMonthly).toBe(0)
+    expect(result.healthMonthly).toBe(leg.insurance.minHealthMonthly)
+  })
+
+  it("first-year student: social=0, health=0", () => {
+    const profile = makeProfile({ isStudent: true, isFirstYear: true, hasSocialInsurance: false })
+    const result = calculateInsurance(20000, 0, profile, leg)
+    expect(result.socialMonthly).toBe(0)
+    expect(result.healthMonthly).toBe(0)
+  })
+})
+
+describe("calculateFreelancerTaxV2 — personal status", () => {
+  it("student freelancer: correct tax with zero health minimum", () => {
+    const profile = makeProfile({ isStudent: true })
+    const result = calculateFreelancerTaxV2(5000, 0, profile, leg)
+    // Low income student: health should not be floored to minimum
+    expect(result.estimatedTax).toBeGreaterThanOrEqual(0)
+    expect(result.taxBase).toBeGreaterThanOrEqual(0)
+  })
+
+  it("pensioner freelancer: no social deduction", () => {
+    const profile = makeProfile({ isPensioner: true })
+    const result = calculateFreelancerTaxV2(30000, 0, profile, leg)
+    expect(result.socialMonthly).toBe(0)
+  })
+})

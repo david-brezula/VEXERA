@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 import { useSupabase } from "./supabase-provider"
 
 type Organization = {
@@ -11,6 +12,12 @@ type Organization = {
   ico: string
   dic: string | null
   ic_dph: string | null
+  address_street: string | null
+  address_city: string | null
+  address_zip: string | null
+  bank_iban: string | null
+  email: string | null
+  phone: string | null
   subscription_plan: string
   organization_type: string
 }
@@ -19,6 +26,7 @@ type OrganizationContextValue = {
   activeOrg: Organization | null
   userOrgs: Organization[]
   isLoading: boolean
+  isSwitching: boolean
   switchOrg: (orgId: string) => void
 }
 
@@ -40,6 +48,10 @@ function setActiveOrgCookie(orgId: string) {
   document.cookie = `${ACTIVE_ORG_COOKIE}=${encodeURIComponent(orgId)}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
 }
 
+function clearActiveOrgCookie() {
+  document.cookie = `${ACTIVE_ORG_COOKIE}=; path=/; max-age=0; SameSite=Lax`
+}
+
 export function OrganizationProvider({
   children,
 }: {
@@ -51,6 +63,7 @@ export function OrganizationProvider({
   const [activeOrgId, setActiveOrgId] = useState<string | null>(
     getActiveOrgIdFromCookie
   )
+  const [isSwitching, setIsSwitching] = useState(false)
 
   const { data: userOrgs = [], isLoading } = useQuery({
     queryKey: ["organizations", user?.id],
@@ -67,6 +80,12 @@ export function OrganizationProvider({
             ico,
             dic,
             ic_dph,
+            address_street,
+            address_city,
+            address_zip,
+            bank_iban,
+            email,
+            phone,
             subscription_plan,
             organization_type
           )
@@ -95,21 +114,47 @@ export function OrganizationProvider({
   }, [isLoading, userOrgs, activeOrgId])
 
   const switchOrg = useCallback(
-    (orgId: string) => {
-      setActiveOrgId(orgId)
-      setActiveOrgCookie(orgId)
-      queryClient.invalidateQueries()
-      router.refresh()
+    async (orgId: string) => {
+      setIsSwitching(true)
+      try {
+        queryClient.removeQueries()
+        setActiveOrgId(orgId)
+        setActiveOrgCookie(orgId)
+        await queryClient.invalidateQueries()
+        router.refresh()
+      } finally {
+        setIsSwitching(false)
+      }
     },
-    [queryClient]
+    [queryClient, router]
   )
+
+  // Detect when activeOrgId is set but no longer exists in userOrgs (e.g. user removed from org)
+  useEffect(() => {
+    if (
+      !isLoading &&
+      userOrgs.length > 0 &&
+      activeOrgId &&
+      !userOrgs.find((org) => org.id === activeOrgId)
+    ) {
+      toast.error("You no longer have access to the selected organization")
+      clearActiveOrgCookie()
+      const firstOrg = userOrgs[0]
+      if (firstOrg) {
+        setActiveOrgId(firstOrg.id)
+        setActiveOrgCookie(firstOrg.id)
+      } else {
+        setActiveOrgId(null)
+      }
+    }
+  }, [isLoading, userOrgs, activeOrgId])
 
   const activeOrg =
     userOrgs.find((org) => org.id === activeOrgId) ?? userOrgs[0] ?? null
 
   return (
     <OrganizationContext.Provider
-      value={{ activeOrg, userOrgs, isLoading, switchOrg }}
+      value={{ activeOrg, userOrgs, isLoading, isSwitching, switchOrg }}
     >
       {children}
     </OrganizationContext.Provider>

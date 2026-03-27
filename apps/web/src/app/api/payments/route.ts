@@ -12,8 +12,9 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { recordPayment, getPaymentHistory } from "@/lib/services/payment.service"
-import { writeAuditLog } from "@/lib/services/audit.server"
+import { recordPayment, getPaymentHistory } from "@/features/invoices/payment.service"
+import { writeAuditLog } from "@/shared/services/audit.server"
+import { verifyOrgMembership, forbiddenResponse } from "@/shared/lib/api-utils"
 
 const createSchema = z.object({
   organization_id: z.string().uuid(),
@@ -39,6 +40,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "invoice_id is required" }, { status: 400 })
     }
 
+    const { data: invoice } = await supabase.from("invoices").select("organization_id").eq("id", invoiceId).single()
+    if (!invoice) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    const membership = await verifyOrgMembership(supabase, user.id, invoice.organization_id)
+    if (!membership) return forbiddenResponse()
+
     const payments = await getPaymentHistory(supabase, invoiceId)
     return NextResponse.json({ data: payments })
   } catch (err) {
@@ -62,6 +68,10 @@ export async function POST(request: Request) {
     }
 
     const { organization_id, invoice_id, ...input } = parsed.data
+
+    const membership = await verifyOrgMembership(supabase, user.id, organization_id)
+    if (!membership) return forbiddenResponse()
+
     const payment = await recordPayment(supabase, organization_id, invoice_id, input)
 
     await writeAuditLog(supabase, {

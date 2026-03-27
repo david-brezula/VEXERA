@@ -28,8 +28,8 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { reconcile, acceptMatch } from "@/lib/services/reconciliation.service"
-import { writeAuditLog } from "@/lib/services/audit.server"
+import { reconcile, acceptMatch } from "@/features/bank/reconciliation.service"
+import { writeAuditLog } from "@/shared/services/audit.server"
 
 const ReconcileSchema = z.object({
   organization_id: z.string().uuid(),

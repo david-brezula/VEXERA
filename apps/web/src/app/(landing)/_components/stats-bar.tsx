@@ -1,7 +1,7 @@
 "use client";
 
-import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
-import { useCountUp } from "@/hooks/use-count-up";
+import { useIntersectionObserver } from "@/shared/hooks/use-intersection-observer";
+import { useCountUp } from "@/shared/hooks/use-count-up";
 
 const stats = [
   { end: 80, suffix: "%", label: "menej manualnej prace" },

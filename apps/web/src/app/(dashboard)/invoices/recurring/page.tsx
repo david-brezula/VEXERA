@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { RecurringPageClient } from "@/components/invoices/recurring-page-client"
+import { RecurringPageClient } from "@/features/invoices/components/recurring-page-client"
 
 export const metadata = {
   title: "Recurring Invoices | Vexera",

@@ -2,13 +2,13 @@ import { Suspense } from "react"
 import Link from "next/link"
 import { PlusIcon } from "lucide-react"
 
-import { getInvoices, type InvoiceFilters } from "@/lib/data/invoices"
-import { ImportEInvoiceDialog } from "@/components/invoices/import-einvoice-dialog"
-import { getActiveOrgId } from "@/lib/data/org"
-import { InvoiceFilters as InvoiceFiltersBar } from "@/components/invoices/invoice-filters"
-import { InvoiceTableClient } from "@/components/invoices/invoice-table-client"
-import { PaginationControls } from "@/components/ui/pagination-controls"
-import { Button } from "@/components/ui/button"
+import { getInvoices, type InvoiceFilters } from "@/features/invoices/data"
+import { ImportEInvoiceDialog } from "@/features/invoices/components/import-einvoice-dialog"
+import { getActiveOrgId } from "@/features/settings/data-org"
+import { InvoiceFilters as InvoiceFiltersBar } from "@/features/invoices/components/invoice-filters"
+import { InvoiceTableClient } from "@/features/invoices/components/invoice-table-client"
+import { PaginationControls } from "@/shared/components/ui/pagination-controls"
+import { Button } from "@/shared/components/ui/button"
 import {
   Table,
   TableBody,
@@ -16,8 +16,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Skeleton } from "@/components/ui/skeleton"
+} from "@/shared/components/ui/table"
+import { Skeleton } from "@/shared/components/ui/skeleton"
 import type { InvoiceStatus, InvoiceType } from "@vexera/types"
 
 // ─── Table skeleton ───────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ export default async function InvoicesPage({
   if (!orgId) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <p className="text-muted-foreground">Select an organization to view invoices</p>
+        <p className="text-muted-foreground">Vyberte organizáciu pre zobrazenie faktúr</p>
       </div>
     )
   }
@@ -94,14 +94,14 @@ export default async function InvoicesPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Invoices</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Faktúry</h1>
         </div>
         <div className="flex items-center gap-2">
           <ImportEInvoiceDialog />
           <Button asChild>
             <Link href="/invoices/new">
               <PlusIcon className="size-4" />
-              New invoice
+              Nová faktúra
             </Link>
           </Button>
         </div>

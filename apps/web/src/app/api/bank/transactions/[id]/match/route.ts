@@ -14,7 +14,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { writeAuditLog } from "@/lib/services/audit.server"
+import { writeAuditLog } from "@/shared/services/audit.server"
 
 // ─── Zod schemas ───────────────────────────────────────────────────────────────
 
@@ -85,9 +85,8 @@ export async function PATCH(
     }
 
     // Verify the transaction belongs to the org
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: transaction, error: txFetchErr } = await (supabase.from("bank_transactions" as any) as any)
-      .select("id, match_status")
+    const { data: transaction, error: txFetchErr } = await supabase.from("bank_transactions")
+      .select("id, match_status, amount")
       .eq("id", transactionId)
       .eq("organization_id", organizationId)
       .single()
@@ -103,8 +102,7 @@ export async function PATCH(
 
     // ── Option B: ignore ────────────────────────────────────────────────────────
     if ("match_status" in body && body.match_status === "ignored") {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: updated, error: updateErr } = await (supabase.from("bank_transactions" as any) as any)
+      const { data: updated, error: updateErr } = await supabase.from("bank_transactions")
         .update({ match_status: "ignored" })
         .eq("id", transactionId)
         .eq("organization_id", organizationId)
@@ -142,7 +140,7 @@ export async function PATCH(
       // Verify the invoice belongs to the org
       const { data: invoice, error: invFetchErr } = await supabase
         .from("invoices")
-        .select("id, status")
+        .select("id, status, total, paid_amount, remaining_amount")
         .eq("id", invoiceId)
         .eq("organization_id", organizationId)
         .single()
@@ -155,8 +153,7 @@ export async function PATCH(
       }
 
       // Update bank_transaction
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: updatedTx, error: txUpdateErr } = await (supabase.from("bank_transactions" as any) as any)
+      const { data: updatedTx, error: txUpdateErr } = await supabase.from("bank_transactions")
         .update({
           match_status: "manually_matched",
           matched_invoice_id: invoiceId,
@@ -173,10 +170,17 @@ export async function PATCH(
         return NextResponse.json({ error: txUpdateErr.message }, { status: 500 })
       }
 
-      // Update invoice status to paid
+      // Update invoice status based on how much has been paid
+      const newPaidAmount = (invoice.paid_amount || 0) + Math.abs(transaction.amount)
+      const isFullyPaid = newPaidAmount >= invoice.total
+
+      const invoiceUpdate = isFullyPaid
+        ? { status: "paid" as const, paid_amount: newPaidAmount, paid_at: now }
+        : { status: "partially_paid" as const, paid_amount: newPaidAmount }
+
       const { error: invUpdateErr } = await supabase
         .from("invoices")
-        .update({ status: "paid", paid_at: now })
+        .update(invoiceUpdate)
         .eq("id", invoiceId)
         .eq("organization_id", organizationId)
 

@@ -1,17 +1,20 @@
 # Vexera
 
-> Multi-tenant SaaS for invoice management, accounting, and ledger management — built for the Slovak/EU market.
+> Standalone cloud accounting platform for the Slovak market — replacing legacy software like Pohoda, Money S3, and KROS.
 
 ---
 
 ## What is Vexera?
 
-Vexera is a web application that helps Slovak businesses manage:
+Vexera is a complete accounting platform that replaces traditional desktop accounting software with a modern, AI-powered cloud solution:
 
-- **Invoices** — issue, receive, track, and close invoices
-- **Documents** — upload and archive receipts, contracts, statements
-- **Ledger** — double-entry accounting with the Slovak chart of accounts
-- **Team access** — invite accountants and team members per organization
+- **Invoicing** — issue, receive, track, pay, and close invoices with PDF and Peppol e-invoicing
+- **Document processing** — upload receipts and invoices, automatic OCR extraction, smart categorization
+- **Double-entry accounting** — full ledger with Slovak chart of accounts, journal entries, fiscal periods
+- **Bank reconciliation** — CSV/MT940 import, automatic payment matching by variable symbol
+- **Tax compliance** — VAT returns (KV DPH, DP DPH), income tax calculations, Slovak 2026 legislation
+- **Reporting** — P&L, cashflow forecasts, category breakdowns, accountant dashboards
+- **Team collaboration** — invite accountants and team members, role-based access per organization
 
 It is **multi-tenant**: one user can belong to multiple organizations and switch between them freely.
 

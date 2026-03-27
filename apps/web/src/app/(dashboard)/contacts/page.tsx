@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { ContactsPageClient } from "@/components/contacts/contacts-page-client"
+import { ContactsPageClient } from "@/features/contacts/components/contacts-page-client"
 
 export const metadata = {
   title: "Contacts | Vexera",

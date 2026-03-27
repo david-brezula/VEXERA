@@ -7,20 +7,20 @@ import { toast } from "sonner"
 
 import { useSupabase } from "@/providers/supabase-provider"
 import { useOrganization } from "@/providers/organization-provider"
-import { useCurrentMemberRole } from "@/hooks/use-current-member-role"
+import { useCurrentMemberRole } from "@/shared/hooks/use-current-member-role"
 import {
   createOrganizationSchema,
   type CreateOrganizationFormValues,
-} from "@/lib/validations/organization.schema"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+} from "@/features/settings/schemas"
+import { Button } from "@/shared/components/ui/button"
+import { Input } from "@/shared/components/ui/input"
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from "@/shared/components/ui/card"
 import {
   Form,
   FormControl,
@@ -28,15 +28,15 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
+} from "@/shared/components/ui/form"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { EmailConnection } from "@/components/settings/email-connection"
+} from "@/shared/components/ui/select"
+import { EmailConnection } from "@/features/settings/components/email-connection"
 
 export default function SettingsPage() {
   const { supabase } = useSupabase()
@@ -81,12 +81,12 @@ export default function SettingsPage() {
       })
 
       // Fetch full org data
-      ;(supabase as any)
+      supabase
         .from("organizations")
-        .select("name, ico, dic, ic_dph, address_street, address_city, address_zip, address_country, email, phone, bank_iban, bank_swift, vat_filing_frequency")
+        .select("name, ico, dic, ic_dph, address_street, address_city, address_zip, address_country, email, phone, bank_iban, bank_swift, filing_frequency")
         .eq("id", activeOrg.id)
         .single()
-        .then(({ data }: { data: any }) => {
+        .then(({ data }) => {
           if (data) {
             form.reset({
               name: data.name,
@@ -102,7 +102,7 @@ export default function SettingsPage() {
               bank_iban: data.bank_iban ?? "",
               bank_swift: data.bank_swift ?? "",
             })
-            setVatFilingFrequency(data.vat_filing_frequency ?? "quarterly")
+            setVatFilingFrequency(data.filing_frequency ?? "quarterly")
           }
         })
     }
@@ -113,7 +113,7 @@ export default function SettingsPage() {
     setIsLoading(true)
 
     try {
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from("organizations")
         .update({
           name: values.name,
@@ -133,10 +133,10 @@ export default function SettingsPage() {
         .eq("id", activeOrg.id)
 
       if (error) throw error
-      toast.success("Organization updated")
+      toast.success("Organizácia aktualizovaná")
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Failed to update"
+        error instanceof Error ? error.message : "Nepodarilo sa aktualizovať"
       toast.error(message)
     } finally {
       setIsLoading(false)
@@ -144,23 +144,23 @@ export default function SettingsPage() {
   }
 
   if (!activeOrg) {
-    return <p className="text-muted-foreground">No organization selected.</p>
+    return <p className="text-muted-foreground">Nie je vybraná organizácia.</p>
   }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Nastavenia</h1>
         <p className="text-muted-foreground">
-          Manage your organization profile
+          Spravujte profil organizácie
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Organization details</CardTitle>
+          <CardTitle>Údaje organizácie</CardTitle>
           <CardDescription>
-            Update your company information.
+            Aktualizujte informácie o spoločnosti.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -171,7 +171,7 @@ export default function SettingsPage() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Company name</FormLabel>
+                    <FormLabel>Názov spoločnosti</FormLabel>
                     <FormControl>
                       <Input disabled={!isAdmin} {...field} />
                     </FormControl>
@@ -225,7 +225,7 @@ export default function SettingsPage() {
                 name="address_street"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Street</FormLabel>
+                    <FormLabel>Ulica</FormLabel>
                     <FormControl>
                       <Input disabled={!isAdmin} {...field} />
                     </FormControl>
@@ -239,7 +239,7 @@ export default function SettingsPage() {
                   name="address_city"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>City</FormLabel>
+                      <FormLabel>Mesto</FormLabel>
                       <FormControl>
                         <Input disabled={!isAdmin} {...field} />
                       </FormControl>
@@ -252,7 +252,7 @@ export default function SettingsPage() {
                   name="address_zip"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>ZIP</FormLabel>
+                      <FormLabel>PSČ</FormLabel>
                       <FormControl>
                         <Input disabled={!isAdmin} {...field} />
                       </FormControl>
@@ -292,7 +292,7 @@ export default function SettingsPage() {
               {form.watch("ic_dph") && (
                 <div className="pt-2 border-t">
                   <FormItem>
-                    <FormLabel>VAT Filing Frequency</FormLabel>
+                    <FormLabel>Frekvencia podávania DPH</FormLabel>
                     <Select
                       value={vatFilingFrequency}
                       onValueChange={setVatFilingFrequency}
@@ -300,27 +300,27 @@ export default function SettingsPage() {
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select frequency" />
+                          <SelectValue placeholder="Vyberte frekvenciu" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="monthly">Monthly</SelectItem>
-                        <SelectItem value="quarterly">Quarterly</SelectItem>
+                        <SelectItem value="monthly">Mesačne</SelectItem>
+                        <SelectItem value="quarterly">Štvrťročne</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground mt-1">
-                      How often you file VAT returns with the tax authority.
+                      Ako často podávate priznanie DPH daňovému úradu.
                     </p>
                   </FormItem>
                 </div>
               )}
               {isAdmin ? (
                 <Button type="submit" disabled={isLoading}>
-                  {isLoading ? "Saving..." : "Save changes"}
+                  {isLoading ? "Ukladám..." : "Uložiť zmeny"}
                 </Button>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  Only admins can edit organization settings.
+                  Nastavenia organizácie môžu upravovať iba administrátori.
                 </p>
               )}
             </form>
@@ -329,7 +329,7 @@ export default function SettingsPage() {
       </Card>
 
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold">Integrations</h2>
+        <h2 className="text-lg font-semibold">Integrácie</h2>
         <EmailConnection />
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { CategoriesPageClient } from "@/components/reports/categories-page-client"
+import { CategoriesPageClient } from "@/features/reports/components/categories-page-client"
 
 export const metadata = {
   title: "Category Reports | Vexera",

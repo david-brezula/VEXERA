@@ -22,8 +22,8 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { enqueueJob, listJobs } from "@/lib/services/queue.service"
-import type { JobStatus } from "@/lib/services/queue.service"
+import { enqueueJob, listJobs } from "@/shared/services/queue.service"
+import type { JobStatus } from "@/shared/services/queue.service"
 
 // ─── Validation schemas ───────────────────────────────────────────────────────
 

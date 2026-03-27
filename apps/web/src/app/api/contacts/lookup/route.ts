@@ -7,7 +7,7 @@
 
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { lookupByICO, isValidICO } from "@/lib/services/register-lookup.service"
+import { lookupByICO, isValidICO } from "@/shared/services/register-lookup.service"
 
 export async function GET(request: Request) {
   try {

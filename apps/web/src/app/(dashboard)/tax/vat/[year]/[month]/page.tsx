@@ -14,11 +14,12 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Textarea } from "@/components/ui/textarea"
+import { toast } from "sonner"
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card"
+import { Badge } from "@/shared/components/ui/badge"
+import { Button } from "@/shared/components/ui/button"
+import { Skeleton } from "@/shared/components/ui/skeleton"
+import { Textarea } from "@/shared/components/ui/textarea"
 import {
   Table,
   TableBody,
@@ -26,7 +27,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/shared/components/ui/table"
 import {
   Dialog,
   DialogContent,
@@ -34,7 +35,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from "@/shared/components/ui/dialog"
 import {
   getVatReturnDetailAction,
   computeVatReturnAction,
@@ -42,8 +43,8 @@ import {
   revertVatReturnAction,
   markVatReturnSubmittedAction,
   updateVatReturnNotesAction,
-} from "@/lib/actions/vat-returns"
-import { exportKvDphAction, exportDpDphAction } from "@/lib/actions/xml-export"
+} from "@/features/reports/vat/actions"
+import { exportKvDphAction, exportDpDphAction } from "@/features/export/actions"
 import type { VatReturn } from "@vexera/types"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -101,7 +102,7 @@ export default function VatReturnDetailPage() {
   })
 
   const vatReturn = result?.data as VatReturn | undefined
-  const invoices = (result?.invoices ?? []) as any[]
+  const invoices = (result?.invoices ?? []) as Array<{ id: string; invoice_number: string; invoice_type: string; issue_date: string; total: number | null; vat_amount: number | null; supplier_name: string | null; customer_name: string | null }>
 
   // Initialize notes when data loads
   if (vatReturn && notes === null) {
@@ -119,14 +120,15 @@ export default function VatReturnDetailPage() {
   const isRefund = liability < 0
 
   const runAction = useCallback(
-    async (actionName: string, fn: () => Promise<any>) => {
+    async (actionName: string, fn: () => Promise<{ error?: string }>) => {
       setActionLoading(actionName)
       try {
         const result = await fn()
         if (result?.error) {
-          console.error(result.error)
+          toast.error("Chyba", { description: result.error })
           return
         }
+        toast.success("Akcia úspešná")
         setNotes(null) // reset to re-sync
         await refetch()
         queryClient.invalidateQueries({ queryKey: ["vat-returns"] })
@@ -384,7 +386,7 @@ export default function VatReturnDetailPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {invoices.map((inv: any) => (
+                  {invoices.map((inv) => (
                     <TableRow key={inv.id}>
                       <TableCell className="font-mono text-sm">
                         {inv.invoice_number ?? "-"}
@@ -397,7 +399,7 @@ export default function VatReturnDetailPage() {
                         {inv.supplier_name || inv.customer_name || "-"}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {inv.total_amount != null ? formatEur(Number(inv.total_amount)) : "-"}
+                        {inv.total != null ? formatEur(Number(inv.total)) : "-"}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {inv.vat_amount != null ? formatEur(Number(inv.vat_amount)) : "-"}

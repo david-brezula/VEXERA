@@ -22,7 +22,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { writeAuditLog } from "@/lib/services/audit.server"
+import { writeAuditLog } from "@/shared/services/audit.server"
 
 const CreateSchema = z.object({
   organization_id: z.string().uuid(),
@@ -107,8 +107,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.from("bank_accounts" as any) as any)
+    const { data, error } = await supabase.from("bank_accounts")
       .insert({ organization_id, ...fields })
       .select("id, bank_name, iban, swift, currency, account_holder, is_active, created_at")
       .single()
@@ -167,8 +166,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.from("bank_accounts" as any) as any)
+    const { data, error } = await supabase.from("bank_accounts")
       .update(parsed.data)
       .eq("id", id)
       .eq("organization_id", organization_id)
@@ -218,8 +216,7 @@ export async function DELETE(request: Request) {
     }
 
     // Soft-deactivate rather than hard delete (preserves transaction history)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.from("bank_accounts" as any) as any)
+    const { error } = await supabase.from("bank_accounts")
       .update({ is_active: false })
       .eq("id", id)
       .eq("organization_id", organization_id)

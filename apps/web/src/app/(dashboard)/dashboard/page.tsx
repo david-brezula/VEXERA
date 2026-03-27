@@ -15,20 +15,20 @@ import {
 } from "lucide-react"
 
 import { redirect } from "next/navigation"
-import { getActiveOrgId, getActiveOrg } from "@/lib/data/org"
-import { FreelancerDashboard } from "@/components/dashboard/freelancer-dashboard"
-import { getDashboardStats, type DashboardStats } from "@/lib/data/dashboard"
-import { getFinancialStats } from "@/lib/data/financial-stats"
-import { getCashFlowData } from "@/lib/data/cashflow"
-import { getCurrentQuarterVat, getVatTimeline } from "@/lib/data/vat"
+import { getActiveOrgId, getActiveOrg } from "@/features/settings/data-org"
+import { FreelancerDashboard } from "@/features/reports/dashboard/components/freelancer-dashboard"
+import { getDashboardStats, type DashboardStats } from "@/features/reports/dashboard/data"
+import { getFinancialStats } from "@/features/reports/dashboard/financial-stats"
+import { getCashFlowData } from "@/features/reports/cashflow/data"
+import { getCurrentQuarterVat, getVatTimeline } from "@/features/reports/vat/data"
 import { formatEur } from "@vexera/utils"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
-import { FinancialOverview } from "@/components/dashboard/financial-overview"
-import { CashFlowWidget } from "@/components/dashboard/cashflow-widget"
-import { VatWidget } from "@/components/dashboard/vat-widget"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/shared/components/ui/card"
+import { Button } from "@/shared/components/ui/button"
+import { Skeleton } from "@/shared/components/ui/skeleton"
+import { Badge } from "@/shared/components/ui/badge"
+import { FinancialOverview } from "@/features/reports/dashboard/components/financial-overview"
+import { CashFlowWidget } from "@/features/reports/dashboard/components/cashflow-widget"
+import { VatWidget } from "@/features/reports/dashboard/components/vat-widget"
 import { cn } from "@/lib/utils"
 
 // ─── Stat cards ───────────────────────────────────────────────────────────────
@@ -75,33 +75,33 @@ function StatCards({ stats }: { stats: DashboardStats }) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       <StatCard
-        title="Total Invoices"
+        title="Celkom faktúr"
         value={stats.invoiceCount}
-        subtitle={`${stats.invoiceCount === 1 ? "invoice" : "invoices"} total`}
+        subtitle={`${stats.invoiceCount === 1 ? "faktúra" : "faktúry"} celkom`}
         icon={FileText}
         iconBg="bg-primary/10"
         iconColor="text-primary"
       />
       <StatCard
-        title="Documents"
+        title="Doklady"
         value={stats.documentCount}
-        subtitle={`${stats.documentCount === 1 ? "document" : "documents"} uploaded`}
+        subtitle={`${stats.documentCount === 1 ? "doklad" : "dokladov"} nahraných`}
         icon={FolderOpen}
         iconBg="bg-violet-500/10"
         iconColor="text-violet-500"
       />
       <StatCard
-        title="Revenue (MTD)"
+        title="Príjmy (tento mesiac)"
         value={formatEur(stats.monthlyRevenue)}
-        subtitle="Paid invoices this month"
+        subtitle="Zaplatené faktúry tento mesiac"
         icon={TrendingUp}
         iconBg="bg-emerald-500/10"
         iconColor="text-emerald-500"
       />
       <StatCard
-        title="Overdue"
+        title="Po splatnosti"
         value={stats.overdueCount}
-        subtitle={`${formatEur(stats.overdueAmount)} outstanding`}
+        subtitle={`${formatEur(stats.overdueAmount)} neuhradených`}
         icon={AlertCircle}
         iconBg={stats.overdueCount > 0 ? "bg-destructive/10" : "bg-muted"}
         iconColor={stats.overdueCount > 0 ? "text-destructive" : "text-muted-foreground"}
@@ -136,18 +136,18 @@ function StatCardsSkeleton() {
 
 function QuickActions() {
   const actions = [
-    { href: "/invoices/new", label: "New Invoice", icon: FileText, primary: true },
-    { href: "/documents", label: "Upload Document", icon: Upload, primary: false },
-    { href: "/bank?tab=import", label: "Import Statement", icon: Landmark, primary: false },
-    { href: "/rules", label: "Add Rule", icon: Zap, primary: false },
-    { href: "/inbox", label: "Inbox", icon: InboxIcon, primary: false },
-    { href: "/onboarding", label: "Setup Guide", icon: CheckCircle, primary: false },
+    { href: "/invoices/new", label: "Nová faktúra", icon: FileText, primary: true },
+    { href: "/documents", label: "Nahrať doklad", icon: Upload, primary: false },
+    { href: "/bank?tab=import", label: "Importovať výpis", icon: Landmark, primary: false },
+    { href: "/rules", label: "Pridať pravidlo", icon: Zap, primary: false },
+    { href: "/inbox", label: "Doručené", icon: InboxIcon, primary: false },
+    { href: "/onboarding", label: "Sprievodca nastavením", icon: CheckCircle, primary: false },
   ]
 
   return (
     <div>
       <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-        Quick Actions
+        Rýchle akcie
       </h2>
       <div className="flex flex-wrap gap-2">
         {actions.map((action) => (
@@ -176,7 +176,7 @@ function FeatureCards() {
   return (
     <div>
       <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-        Features
+        Funkcie
       </h2>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {/* Bank */}
@@ -187,30 +187,30 @@ function FeatureCards() {
                 <Landmark className="h-5 w-5 text-blue-500" />
               </div>
               <div>
-                <CardTitle className="text-sm font-semibold">Bank</CardTitle>
-                <CardDescription className="text-xs">Transactions & reconciliation</CardDescription>
+                <CardTitle className="text-sm font-semibold">Banka</CardTitle>
+                <CardDescription className="text-xs">Transakcie a párovanie</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Import statements, auto-match transactions to invoices, and review reconciliation suggestions.
+              Importujte výpisy, automaticky párujte transakcie s faktúrami a kontrolujte návrhy párovania.
             </p>
             <div className="flex flex-col gap-1.5">
               <Link href="/bank?tab=transactions">
                 <Button variant="ghost" size="sm" className="w-full justify-between text-xs h-8 hover:bg-accent">
-                  View Transactions <ArrowRight className="h-3 w-3" />
+                  Zobraziť transakcie <ArrowRight className="h-3 w-3" />
                 </Button>
               </Link>
               <Link href="/bank?tab=import">
                 <Button variant="ghost" size="sm" className="w-full justify-between text-xs h-8 hover:bg-accent">
-                  <span className="flex items-center gap-1.5"><Upload className="h-3 w-3" /> Import Statement</span>
+                  <span className="flex items-center gap-1.5"><Upload className="h-3 w-3" /> Importovať výpis</span>
                   <ArrowRight className="h-3 w-3" />
                 </Button>
               </Link>
               <Link href="/bank?tab=reconcile">
                 <Button variant="ghost" size="sm" className="w-full justify-between text-xs h-8 hover:bg-accent">
-                  <span className="flex items-center gap-1.5"><CheckCircle className="h-3 w-3" /> Reconcile</span>
+                  <span className="flex items-center gap-1.5"><CheckCircle className="h-3 w-3" /> Párovať</span>
                   <ArrowRight className="h-3 w-3" />
                 </Button>
               </Link>
@@ -226,24 +226,24 @@ function FeatureCards() {
                 <Zap className="h-5 w-5 text-violet-500" />
               </div>
               <div>
-                <CardTitle className="text-sm font-semibold">Rules</CardTitle>
-                <CardDescription className="text-xs">Automation engine</CardDescription>
+                <CardTitle className="text-sm font-semibold">Pravidlá</CardTitle>
+                <CardDescription className="text-xs">Automatizácia</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Create IF/THEN rules to automatically categorize documents and transactions based on supplier, amount, or description.
+              Vytvorte pravidlá AK/TAK na automatickú kategorizáciu dokladov a transakcií podľa dodávateľa, sumy alebo popisu.
             </p>
             <div className="flex flex-col gap-1.5">
               <Link href="/rules">
                 <Button variant="ghost" size="sm" className="w-full justify-between text-xs h-8 hover:bg-accent">
-                  Manage Rules <ArrowRight className="h-3 w-3" />
+                  Spravovať pravidlá <ArrowRight className="h-3 w-3" />
                 </Button>
               </Link>
               <Link href="/rules">
                 <Button variant="ghost" size="sm" className="w-full justify-between text-xs h-8 hover:bg-accent">
-                  <span className="flex items-center gap-1.5"><Zap className="h-3 w-3" /> Create New Rule</span>
+                  <span className="flex items-center gap-1.5"><Zap className="h-3 w-3" /> Vytvoriť pravidlo</span>
                   <ArrowRight className="h-3 w-3" />
                 </Button>
               </Link>
@@ -260,13 +260,13 @@ function FeatureCards() {
               </div>
               <div>
                 <CardTitle className="text-sm font-semibold">Export</CardTitle>
-                <CardDescription className="text-xs">Accounting software</CardDescription>
+                <CardDescription className="text-xs">Účtovný softvér</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Export accounting data to Pohoda XML, Money S3 CSV, or generic CSV for your accountant.
+              Exportujte účtovné dáta do formátov Pohoda XML, Money S3 CSV alebo všeobecného CSV pre vášho účtovníka.
             </p>
             <div className="flex flex-wrap gap-1.5 mb-1">
               {["Pohoda", "Money S3", "KROS", "CSV"].map((fmt) => (
@@ -277,7 +277,7 @@ function FeatureCards() {
             </div>
             <Link href="/export">
               <Button variant="ghost" size="sm" className="w-full justify-between text-xs h-8 hover:bg-accent">
-                <span className="flex items-center gap-1.5"><Download className="h-3 w-3" /> Export Data</span>
+                <span className="flex items-center gap-1.5"><Download className="h-3 w-3" /> Exportovať dáta</span>
                 <ArrowRight className="h-3 w-3" />
               </Button>
             </Link>
@@ -324,9 +324,9 @@ export default async function DashboardPage() {
           <TrendingUp className="h-6 w-6 text-primary" />
         </div>
         <div className="text-center">
-          <h2 className="text-xl font-semibold">Welcome to Vexera</h2>
+          <h2 className="text-xl font-semibold">Vitajte vo Vexere</h2>
           <p className="text-muted-foreground text-sm mt-1">
-            Create your first organization to get started.
+            Vytvorte si prvú organizáciu.
           </p>
         </div>
       </div>
@@ -349,9 +349,9 @@ export default async function DashboardPage() {
     <div className="space-y-8 max-w-7xl">
       {/* Page header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Good morning</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Dobré ráno</h1>
         <p className="text-muted-foreground text-sm mt-0.5">
-          Here&apos;s what&apos;s happening with your finances.
+          Tu je prehľad vašich financií.
         </p>
       </div>
 

@@ -1,0 +1,243 @@
+"use client"
+
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import {
+  LayoutDashboard,
+  FileText,
+  FolderOpen,
+  BookOpen,
+  Settings,
+  Landmark,
+  Zap,
+  Download,
+  Inbox,
+  Users,
+  Receipt,
+  Calculator,
+  Palette,
+  MessageSquare,
+} from "lucide-react"
+
+import { cn } from "@/lib/utils"
+import { OrgSwitcher } from "./org-switcher"
+import { ScrollArea } from "@/shared/components/ui/scroll-area"
+import { BankPatternBadge } from "./bank-pattern-badge"
+
+// ─── Nav structure ────────────────────────────────────────────────────────────
+
+interface NavItemDef {
+  href: string
+  label: string
+  icon: React.ElementType
+  badge?: React.ReactNode
+}
+
+const baseNavGroups: { label: string; items: NavItemDef[] }[] = [
+  {
+    label: "Hlavné",
+    items: [
+      { href: "/dashboard", label: "Prehľad", icon: LayoutDashboard },
+      { href: "/inbox", label: "Doručené", icon: Inbox },
+    ],
+  },
+  {
+    label: "Financie",
+    items: [
+      { href: "/invoices", label: "Faktúry", icon: FileText },
+      { href: "/documents", label: "Doklady", icon: FolderOpen },
+      { href: "/bank", label: "Banka", icon: Landmark, badge: <BankPatternBadge /> },
+    ],
+  },
+  {
+    label: "Automatizácia",
+    items: [
+      { href: "/rules", label: "Pravidlá", icon: Zap },
+      { href: "/export", label: "Export", icon: Download },
+      { href: "/chat", label: "AI Asistent", icon: MessageSquare },
+    ],
+  },
+  {
+    label: "Dane",
+    items: [
+      { href: "/tax/vat", label: "Priznanie DPH", icon: Receipt },
+      { href: "/tax/income", label: "Daň z príjmov", icon: Calculator },
+    ],
+  },
+  {
+    label: "Tím",
+    items: [
+      { href: "/ledger", label: "Účtovná kniha", icon: BookOpen },
+    ],
+  },
+]
+
+const accountingFirmNavGroups: { label: string; items: NavItemDef[] }[] = [
+  {
+    label: "Hlavné",
+    items: [
+      { href: "/dashboard", label: "Prehľad", icon: LayoutDashboard },
+      { href: "/inbox", label: "Doručené", icon: Inbox },
+    ],
+  },
+  {
+    label: "Financie",
+    items: [
+      { href: "/invoices", label: "Faktúry", icon: FileText },
+      { href: "/documents", label: "Doklady", icon: FolderOpen },
+      { href: "/bank", label: "Banka", icon: Landmark, badge: <BankPatternBadge /> },
+    ],
+  },
+  {
+    label: "Automatizácia",
+    items: [
+      { href: "/rules", label: "Pravidlá", icon: Zap },
+      { href: "/export", label: "Export", icon: Download },
+      { href: "/chat", label: "AI Asistent", icon: MessageSquare },
+    ],
+  },
+  {
+    label: "Dane",
+    items: [
+      { href: "/tax/vat", label: "Priznanie DPH", icon: Receipt },
+      { href: "/tax/income", label: "Daň z príjmov", icon: Calculator },
+    ],
+  },
+  {
+    label: "Tím",
+    items: [
+      { href: "/accountant", label: "Klienti", icon: Users },
+      { href: "/ledger", label: "Účtovná kniha", icon: BookOpen },
+    ],
+  },
+]
+
+const bottomItems = [
+  { href: "/settings", label: "Nastavenia", icon: Settings },
+  { href: "/settings/invoice-template", label: "Šablóna faktúry", icon: Palette },
+]
+
+// ─── Logo mark ────────────────────────────────────────────────────────────────
+
+function Logo() {
+  return (
+    <Link href="/dashboard" className="flex items-center gap-2.5 group">
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary shadow-sm group-hover:opacity-90 transition-opacity">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="text-sidebar-primary-foreground"
+        >
+          <path
+            d="M2 3L6 13L8 7L10 13L14 3"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </div>
+      <span className="font-semibold text-[15px] tracking-tight text-sidebar-foreground">
+        Vexera
+      </span>
+    </Link>
+  )
+}
+
+// ─── Nav item ─────────────────────────────────────────────────────────────────
+
+function NavItem({
+  href,
+  label,
+  icon: Icon,
+  isActive,
+  badge,
+}: {
+  href: string
+  label: string
+  icon: React.ElementType
+  isActive: boolean
+  badge?: React.ReactNode
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150",
+        isActive
+          ? "bg-white/10 backdrop-blur-sm text-sidebar-primary-foreground shadow-sm"
+          : "text-sidebar-foreground/60 hover:bg-white/5 hover:text-sidebar-accent-foreground"
+      )}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      {label}
+      {badge && <span className="ml-auto">{badge}</span>}
+    </Link>
+  )
+}
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+
+export function Sidebar({ organizationType }: { organizationType?: string }) {
+  const pathname = usePathname()
+  const navGroups = organizationType === "accounting_firm" ? accountingFirmNavGroups : baseNavGroups
+
+  function isActive(href: string) {
+    return href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href)
+  }
+
+  return (
+    <aside className="hidden w-[220px] shrink-0 md:flex flex-col bg-sidebar/90 backdrop-blur-xl border-r border-sidebar-border">
+      {/* Logo */}
+      <div className="flex h-14 items-center px-4 border-b border-sidebar-border">
+        <Logo />
+      </div>
+
+      {/* Org switcher */}
+      <div className="px-3 pt-3 pb-2">
+        <OrgSwitcher />
+      </div>
+
+      {/* Nav groups */}
+      <ScrollArea className="flex-1 px-3 py-2">
+        <nav className="flex flex-col gap-5">
+          {navGroups.map((group) => (
+            <div key={group.label}>
+              <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/30">
+                {group.label}
+              </p>
+              <div className="flex flex-col gap-0.5">
+                {group.items.map((item) => (
+                  <NavItem
+                    key={item.href}
+                    href={item.href}
+                    label={item.label}
+                    icon={item.icon}
+                    isActive={isActive(item.href)}
+                    badge={item.badge}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </nav>
+      </ScrollArea>
+
+      {/* Bottom: settings */}
+      <div className="px-3 pb-4 border-t border-sidebar-border pt-3">
+        {bottomItems.map((item) => (
+          <NavItem
+            key={item.href}
+            href={item.href}
+            label={item.label}
+            icon={item.icon}
+            isActive={isActive(item.href)}
+          />
+        ))}
+      </div>
+    </aside>
+  )
+}

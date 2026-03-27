@@ -61,23 +61,23 @@ alter table public.contacts enable row level security;
 
 create policy "Users can view contacts for their orgs"
   on public.contacts for select
-  using (organization_id in (select public.get_accessible_organization_ids()));
+  using (organization_id = ANY(public.get_accessible_organization_ids()));
 
 create policy "Users can insert contacts for their orgs"
   on public.contacts for insert
-  with check (organization_id in (select public.get_user_organization_ids()));
+  with check (organization_id = ANY(public.get_user_organization_ids()));
 
 create policy "Users can update contacts for their orgs"
   on public.contacts for update
-  using (organization_id in (select public.get_user_organization_ids()));
+  using (organization_id = ANY(public.get_user_organization_ids()));
 
 create policy "Users can delete contacts for their orgs"
   on public.contacts for delete
-  using (organization_id in (select public.get_user_organization_ids()));
+  using (organization_id = ANY(public.get_user_organization_ids()));
 
 -- ─── Updated_at trigger ─────────────────────────────────────────────────────
 
 create trigger set_contacts_updated_at
   before update on public.contacts
   for each row
-  execute function public.set_updated_at();
+  execute function public.update_updated_at_column();

@@ -6,7 +6,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js"
-import { recordOpen } from "@/lib/services/email-tracking.service"
+import { recordOpen } from "@/features/notifications/email-tracking.service"
 
 // 1x1 transparent PNG (base64)
 const TRANSPARENT_PIXEL = Buffer.from(

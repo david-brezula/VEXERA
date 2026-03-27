@@ -6,8 +6,9 @@
 
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { getProduct, updateProduct, deleteProduct } from "@/lib/services/products.service"
-import { writeAuditLog } from "@/lib/services/audit.server"
+import { getProduct, updateProduct, deleteProduct } from "@/features/products/service"
+import { writeAuditLog } from "@/shared/services/audit.server"
+import { verifyOrgMembership, forbiddenResponse } from "@/shared/lib/api-utils"
 
 export async function GET(
   _request: Request,
@@ -29,6 +30,8 @@ export async function GET(
     if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
     const orgId = (data as unknown as { organization_id: string }).organization_id
+    const membership = await verifyOrgMembership(supabase, user.id, orgId)
+    if (!membership) return forbiddenResponse()
     const product = await getProduct(supabase, orgId, id)
     if (!product) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
@@ -62,6 +65,8 @@ export async function PATCH(
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
     const orgId = (existing as unknown as { organization_id: string }).organization_id
+    const membership = await verifyOrgMembership(supabase, user.id, orgId)
+    if (!membership) return forbiddenResponse()
     const product = await updateProduct(supabase, orgId, id, body)
 
     await writeAuditLog(supabase, {
@@ -102,6 +107,8 @@ export async function DELETE(
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
     const orgId = (existing as unknown as { organization_id: string }).organization_id
+    const membership = await verifyOrgMembership(supabase, user.id, orgId)
+    if (!membership) return forbiddenResponse()
     await deleteProduct(supabase, orgId, id)
 
     await writeAuditLog(supabase, {

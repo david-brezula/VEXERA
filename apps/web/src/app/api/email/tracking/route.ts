@@ -7,7 +7,8 @@
 
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { getTrackingForInvoice } from "@/lib/services/email-tracking.service"
+import { getTrackingForInvoice } from "@/features/notifications/email-tracking.service"
+import { verifyOrgMembership, forbiddenResponse } from "@/shared/lib/api-utils"
 
 export async function GET(request: Request) {
   try {
@@ -20,6 +21,11 @@ export async function GET(request: Request) {
     if (!invoiceId) {
       return NextResponse.json({ error: "invoice_id is required" }, { status: 400 })
     }
+
+    const { data: invoice } = await supabase.from("invoices").select("organization_id").eq("id", invoiceId).single()
+    if (!invoice) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    const membership = await verifyOrgMembership(supabase, user.id, invoice.organization_id)
+    if (!membership) return forbiddenResponse()
 
     const records = await getTrackingForInvoice(supabase, invoiceId)
     return NextResponse.json({ data: records })

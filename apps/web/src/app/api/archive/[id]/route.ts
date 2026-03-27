@@ -4,7 +4,8 @@
 
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { updateRetentionPolicy } from "@/lib/services/archive.service"
+import { updateRetentionPolicy } from "@/features/settings/archive.service"
+import { verifyOrgMembership, forbiddenResponse } from "@/shared/lib/api-utils"
 
 export async function PATCH(
   request: Request,
@@ -28,6 +29,8 @@ export async function PATCH(
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
     const orgId = (existing as unknown as { organization_id: string }).organization_id
+    const membership = await verifyOrgMembership(supabase, user.id, orgId)
+    if (!membership) return forbiddenResponse()
     const policy = await updateRetentionPolicy(supabase, orgId, id, body)
 
     return NextResponse.json({ data: policy })

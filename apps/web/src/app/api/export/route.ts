@@ -17,15 +17,14 @@
  * GET returns 200:
  * { data: ExportJob[] }  — with an optional download_url field on completed jobs
  *
- * All export_jobs DB operations use (supabase.from("export_jobs" as any) as any) cast
- * because the table is not in the placeholder generated types.
+ * All export_jobs DB operations use supabase.from("export_jobs").
  */
 
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { writeAuditLog } from "@/lib/services/audit.server"
-import { getDownloadPresignedUrl } from "@/lib/services/storage.service"
+import { writeAuditLog } from "@/shared/services/audit.server"
+import { getDownloadPresignedUrl } from "@/features/documents/storage.service"
 import type { ExportFormat, ExportJob } from "@vexera/types"
 
 // ─── Validation ───────────────────────────────────────────────────────────────
@@ -112,8 +111,7 @@ export async function GET(request: Request) {
 
     if (!membership) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.from("export_jobs" as any) as any)
+    const { data, error } = await supabase.from("export_jobs")
       .select(
         "id, organization_id, created_by, format, period_from, period_to, include_types, status, started_at, completed_at, error_message, file_path, row_count, created_at, updated_at"
       )
@@ -172,8 +170,7 @@ export async function POST(request: Request) {
     if (!membership) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
     // Create the export job record
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: job, error: insertError } = await (supabase.from("export_jobs" as any) as any)
+    const { data: job, error: insertError } = await supabase.from("export_jobs")
       .insert({
         organization_id,
         created_by: user.id,

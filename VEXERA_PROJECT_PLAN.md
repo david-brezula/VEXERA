@@ -5,9 +5,9 @@
 
 ## 1. WHAT IS VEXERA?
 
-VEXERA is a **cloud automation layer on top of accounting** — not a replacement for legacy Slovak accounting systems (Pohoda / Money / KROS), but a smart pre-processing and collaboration workspace that sits in front of them.
+VEXERA is a **standalone cloud accounting platform** — a complete replacement for legacy Slovak accounting systems (Pohoda, Money S3, KROS, Omega). It combines full accounting, AI-powered automation, and a modern collaboration workspace in one cloud-native product.
 
-**One-liner vision:** Automate 60–80% of routine accounting work for accountants, and give business owners a real-time financial picture of their company — in one shared environment.
+**One-liner vision:** The modern cloud accounting platform that replaces legacy Slovak accounting software — complete accounting with AI automation.
 
 **Product name in spec documents:** "Účtovný SaaS" / internal codename VEXERA.
 

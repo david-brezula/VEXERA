@@ -24,9 +24,9 @@
 
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { parseBankStatement } from "@/lib/services/bank-import.service"
-import { reconcile, acceptMatch } from "@/lib/services/reconciliation.service"
-import type { ReconcileMatch } from "@/lib/services/reconciliation.service"
+import { parseBankStatement } from "@/features/bank/service"
+import { reconcile, acceptMatch } from "@/features/bank/reconciliation.service"
+import type { ReconcileMatch } from "@/features/bank/reconciliation.service"
 
 export async function POST(request: Request) {
   try {
@@ -45,6 +45,24 @@ export async function POST(request: Request) {
     if (!file || !bankAccountId || !organizationId) {
       return NextResponse.json(
         { error: "Missing required fields: file, bank_account_id, organization_id" },
+        { status: 400 }
+      )
+    }
+
+    // Validate file size (5 MB max for text statements)
+    const MAX_IMPORT_SIZE = 5 * 1024 * 1024
+    if (file.size > MAX_IMPORT_SIZE) {
+      return NextResponse.json(
+        { error: "File too large. Maximum size for bank statement imports is 5 MB." },
+        { status: 400 }
+      )
+    }
+
+    // Validate MIME type
+    const ALLOWED_IMPORT_TYPES = ["text/csv", "text/plain", "application/xml", "text/xml"]
+    if (!ALLOWED_IMPORT_TYPES.includes(file.type)) {
+      return NextResponse.json(
+        { error: "Unsupported file type. Accepted: CSV, plain text, or XML." },
         { status: 400 }
       )
     }
@@ -118,9 +136,7 @@ export async function POST(request: Request) {
         source_file_name: file.name,
       }))
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const bankTxTable = supabase.from("bank_transactions" as any)
-      const { data: inserted, error: insertErr } = await bankTxTable
+      const { data: inserted, error: insertErr } = await supabase.from("bank_transactions")
         .upsert(batch as unknown as never, {
           onConflict: "bank_account_id,external_id",
           ignoreDuplicates: true,
@@ -129,9 +145,8 @@ export async function POST(request: Request) {
 
       if (insertErr) {
         // If upsert not available, fall back to insert with error handling
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: fallbackInserted, error: fallbackErr } = await supabase
-          .from("bank_transactions" as any)
+          .from("bank_transactions")
           .insert(batch as unknown as never)
           .select("id")
 

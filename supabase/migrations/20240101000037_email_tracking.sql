@@ -37,19 +37,19 @@ alter table public.email_tracking enable row level security;
 
 create policy "Users can view email tracking for their orgs"
   on public.email_tracking for select
-  using (organization_id in (select public.get_accessible_organization_ids()));
+  using (organization_id = ANY(public.get_accessible_organization_ids()));
 
 create policy "Users can insert email tracking for their orgs"
   on public.email_tracking for insert
-  with check (organization_id in (select public.get_user_organization_ids()));
+  with check (organization_id = ANY(public.get_user_organization_ids()));
 
 create policy "Users can update email tracking for their orgs"
   on public.email_tracking for update
-  using (organization_id in (select public.get_user_organization_ids()));
+  using (organization_id = ANY(public.get_user_organization_ids()));
 
 -- ─── Updated_at trigger ─────────────────────────────────────────────────────
 
 create trigger set_email_tracking_updated_at
   before update on public.email_tracking
   for each row
-  execute function public.set_updated_at();
+  execute function public.update_updated_at_column();

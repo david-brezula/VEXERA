@@ -10,7 +10,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { trackEvent } from "@/lib/services/analytics.service"
+import { trackEvent } from "@/features/reports/analytics.service"
 
 const EventSchema = z.object({
   event_name: z.string().min(1).max(200),

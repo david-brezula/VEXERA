@@ -1,30 +1,27 @@
 # Sprint 2: Invoice Completeness — Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **Design doc:** `docs/plans/2026-03-11-sprint-2-invoice-completeness-design.md`
+> **Branch:** `feat/role-based-onboarding` (continues Sprint 1)
 
-**Goal:** Make invoicing production-ready by completing all gaps: FK relationships, form integration, print enhancements, PDF generation, credit notes, email sending, and stats wiring.
+## Batches
 
-**Architecture:** Add optional FKs (contact_id, product_id, credit_note_for_id) while keeping text snapshot fields. Add ContactPicker/ProductPicker comboboxes to the invoice form. Enhance print view with VAT breakdown, logo, and PAY by square QR. Generate PDFs server-side with @react-pdf/renderer. Add credit note and email actions.
-
-**Tech Stack:** Next.js 15, Supabase, TypeScript, Zod, shadcn/ui, cmdk, @react-pdf/renderer, qrcode, lzma-native/lzma-js
+Work is split into 4 sequential batches (Phases A → B → C → D).
+Each batch ends with `npx pnpm type-check` and `npx pnpm build` verification.
 
 ---
 
-## Phase A: Database & Schema (Tasks 1–4)
+## Batch 1 — Phase A: Database & Schema (Tasks 1–4)
 
 ### Task 1: Database migration — Add FK columns
 
-**Files:**
-- Create: `supabase/migrations/20240101000044_invoice_contact_product_fk.sql`
-
-**Step 1: Write the migration**
+**Create:** `supabase/migrations/20240101000044_invoice_contact_product_fk.sql`
 
 ```sql
--- Add contact FK to invoices
+-- Add contact_id FK to invoices (optional — snapshot fields remain)
 ALTER TABLE public.invoices
   ADD COLUMN IF NOT EXISTS contact_id UUID REFERENCES public.contacts(id) ON DELETE SET NULL;
 
--- Add product FK to invoice_items
+-- Add product_id FK to invoice_items (optional — snapshot fields remain)
 ALTER TABLE public.invoice_items
   ADD COLUMN IF NOT EXISTS product_id UUID REFERENCES public.products(id) ON DELETE SET NULL;
 
@@ -32,10 +29,12 @@ ALTER TABLE public.invoice_items
 ALTER TABLE public.invoices
   ADD COLUMN IF NOT EXISTS credit_note_for_id UUID REFERENCES public.invoices(id) ON DELETE SET NULL;
 
--- Add invoice_type column (standard or credit_note)
+-- Update invoice_type check to include credit_note
 ALTER TABLE public.invoices
-  ADD COLUMN IF NOT EXISTS invoice_type TEXT NOT NULL DEFAULT 'standard'
-  CHECK (invoice_type IN ('standard', 'credit_note'));
+  DROP CONSTRAINT invoices_invoice_type_check;
+ALTER TABLE public.invoices
+  ADD CONSTRAINT invoices_invoice_type_check
+  CHECK (invoice_type IN ('issued', 'received', 'credit_note'));
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_invoices_contact_id ON public.invoices(contact_id);
@@ -43,394 +42,232 @@ CREATE INDEX IF NOT EXISTS idx_invoice_items_product_id ON public.invoice_items(
 CREATE INDEX IF NOT EXISTS idx_invoices_credit_note_for_id ON public.invoices(credit_note_for_id);
 ```
 
-**Step 2: Verify migration**
-
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA" && npx supabase db push --dry-run` (or just verify SQL syntax)
-
-**Step 3: Commit**
-
-```bash
-git add supabase/migrations/20240101000044_invoice_contact_product_fk.sql
-git commit -m "feat: add contact_id, product_id, credit_note_for_id FKs to invoices"
-```
+**Commit:** `feat(db): add contact_id, product_id, credit_note_for_id FK columns`
 
 ---
 
-### Task 2: Update invoice Zod schema
+### Task 2: Add specific_symbol input to invoice form
 
-**Files:**
-- Modify: `apps/web/src/lib/validations/invoice.schema.ts`
+**Modify:** `apps/web/src/components/invoices/invoice-form.tsx`
 
-**Step 1: Add new fields to the schema**
+After the `constant_symbol` FormField (line 371), before the closing `</div>` of the payment grid, insert:
 
-Add to the invoice schema:
-- `contact_id: z.string().uuid().optional().nullable()`
-- `invoice_type: z.enum(["standard", "credit_note"]).default("standard")`
-- `credit_note_for_id: z.string().uuid().optional().nullable()`
+```tsx
+            <FormField
+              control={form.control}
+              name="specific_symbol"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Specific symbol</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Optional" {...field} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+```
 
-Add to the invoice item schema:
-- `product_id: z.string().uuid().optional().nullable()`
+The field already exists in the Zod schema (line 58) and DB but was missing from the form.
 
-**Step 2: Add cross-field validation**
+**Commit:** `feat(form): add specific_symbol input to invoice form`
 
-Add `.refine()` to ensure `due_date >= issue_date`:
+---
+
+### Task 3: Cross-field date validation
+
+**Modify:** `apps/web/src/lib/validations/invoice.schema.ts`
+
+Add `.refine()` to `invoiceSchema` (after the closing `})`):
 
 ```typescript
-.refine(
-  (data) => !data.due_date || !data.issue_date || new Date(data.due_date) >= new Date(data.issue_date),
-  { message: "Due date must be on or after issue date", path: ["due_date"] }
+export const invoiceSchema = z.object({
+  // ... all existing fields unchanged ...
+}).refine(
+  (data) => {
+    if (!data.issue_date || !data.due_date) return true
+    return data.due_date >= data.issue_date
+  },
+  {
+    message: "Due date must be on or after the issue date",
+    path: ["due_date"],
+  }
 )
 ```
 
-**Step 3: Verify**
+**Commit:** `feat(validation): add cross-field due_date >= issue_date check`
 
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA/apps/web" && npx tsc --noEmit`
+---
 
-**Step 4: Commit**
+### Task 4: Add contact_id and product_id to schema + types
 
+**Modify:** `apps/web/src/lib/validations/invoice.schema.ts`
+
+Add to `invoiceItemSchema` (after `sort_order` at line 21):
+```typescript
+  product_id: z.string().uuid().optional().or(z.literal("")),
+```
+
+Add to `invoiceSchema` object (after `currency` at line 65):
+```typescript
+  contact_id: z.string().uuid().optional().or(z.literal("")),
+```
+
+Add `product_id: ""` to the default item in `defaultInvoiceValues` (line 113), and `contact_id: ""` to the return object (after `currency` at line 105).
+
+**Modify:** `packages/types/src/index.ts`
+
+Update `InvoiceType`:
+```typescript
+export type InvoiceType = 'issued' | 'received' | 'credit_note'
+```
+
+**Modify:** `apps/web/src/lib/actions/invoices.ts`
+
+In `buildItemsPayload` (line 42-52), add after `sort_order: i`:
+```typescript
+      product_id: item.product_id || null,
+```
+
+In `createInvoiceAction` insert block (around line 87), add:
+```typescript
+        contact_id: values.contact_id || null,
+```
+
+**Commit:** `feat(schema): add contact_id, product_id fields and credit_note type`
+
+### Batch 1 verification
 ```bash
-git add apps/web/src/lib/validations/invoice.schema.ts
-git commit -m "feat: add FK fields and cross-field validation to invoice schema"
+cd "C:\Users\david\Documents\NW\Claude setup\VEXERA" && npx pnpm type-check && npx pnpm build
 ```
 
 ---
 
-### Task 3: Add specific_symbol to invoice form
+## Batch 2 — Phase B: Form Integration (Tasks 5–6)
 
-**Files:**
-- Modify: `apps/web/src/components/invoices/invoice-form.tsx`
+### Task 5: ContactPicker combobox
 
-**Step 1: Read the form file to find Section 4 (Dates & Payment)**
-
-The `specific_symbol` field exists in schema (line 58) and DB (line 31) but has no form input. Add it to Section 4 alongside `variable_symbol` and `constant_symbol`.
-
-**Step 2: Add the input field**
-
-In Section 4, after the `constant_symbol` FormField, add:
-
-```tsx
-<FormField
-  control={form.control}
-  name="specific_symbol"
-  render={({ field }) => (
-    <FormItem>
-      <FormLabel>Specific Symbol</FormLabel>
-      <FormControl>
-        <Input placeholder="e.g. 1234567890" {...field} value={field.value ?? ""} />
-      </FormControl>
-      <FormMessage />
-    </FormItem>
-  )}
-/>
+**Pre-requisite:** Add shadcn Command component:
+```bash
+cd "C:\Users\david\Documents\NW\Claude setup\VEXERA\apps\web" && npx shadcn@latest add command
 ```
 
-**Step 3: Verify**
+**Create:** `apps/web/src/lib/actions/contacts.ts`
 
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA/apps/web" && npx tsc --noEmit`
+Server action to search contacts:
+```typescript
+"use server"
 
-**Step 4: Commit**
+import { createClient } from "@/lib/supabase/server"
+import { getActiveOrgId } from "@/lib/data/org"
+import { listContacts, type Contact } from "@/lib/services/contacts.service"
 
+export async function searchContactsAction(
+  search: string,
+  type: "client" | "supplier"
+): Promise<Contact[]> {
+  const [supabase, orgId] = await Promise.all([createClient(), getActiveOrgId()])
+  if (!orgId) return []
+  return listContacts(supabase, orgId, { type, search }, 20)
+}
+```
+
+**Create:** `apps/web/src/components/invoices/contact-picker.tsx`
+
+Combobox component using `Popover` + `Command` (cmdk):
+- Props: `contactType: "supplier" | "client"`, `value?: string`, `onSelect: (contact) => void`
+- On open/search change: calls `searchContactsAction(search, contactType)`
+- Renders contact name, IČO, and city in dropdown items
+- On selection: calls `onSelect(contact)`, closes popover
+
+**Modify:** `apps/web/src/components/invoices/invoice-form.tsx`
+
+Add two `ContactPicker` instances:
+1. In Section 2 (Supplier, around line 115), before the supplier_name field — with `contactType="supplier"`
+2. In Section 3 (Customer, around line 195), before the customer_name field — with `contactType="client"`
+
+On contact selection, auto-fill using `form.setValue()`:
+- `supplier_name` / `customer_name` ← `contact.name`
+- `supplier_ico` / `customer_ico` ← `contact.ico`
+- `supplier_dic` / `customer_dic` ← `contact.dic`
+- `supplier_ic_dph` / `customer_ic_dph` ← `contact.ic_dph`
+- `supplier_address` / `customer_address` ← `[contact.street, contact.city, contact.postal_code].filter(Boolean).join(", ")`
+- `supplier_iban` ← `contact.bank_account` (supplier only)
+- `contact_id` ← `contact.id`
+
+Manual override: user can still edit text fields after selection.
+
+**Commit:** `feat(form): add ContactPicker with auto-fill for supplier/customer`
+
+---
+
+### Task 6: ProductPicker combobox
+
+**Create:** `apps/web/src/lib/actions/products.ts`
+
+Server action to list products:
+```typescript
+"use server"
+
+import { createClient } from "@/lib/supabase/server"
+import { getActiveOrgId } from "@/lib/data/org"
+import { listProducts, type Product } from "@/lib/services/products.service"
+
+export async function searchProductsAction(): Promise<Product[]> {
+  const [supabase, orgId] = await Promise.all([createClient(), getActiveOrgId()])
+  if (!orgId) return []
+  return listProducts(supabase, orgId, true) // activeOnly
+}
+```
+
+**Create:** `apps/web/src/components/invoices/product-picker.tsx`
+
+Combobox component using `Popover` + `Command`:
+- Props: `value?: string`, `onSelect: (product) => void`
+- Fetches all active products on open, client-side filters by search
+- Shows product name, unit price, VAT rate in dropdown
+- On selection: calls `onSelect(product)`, closes popover
+
+**Modify:** `apps/web/src/components/invoices/invoice-items-editor.tsx`
+
+For each line item row, add a small `ProductPicker` button before the description input. On product selection, use the field array's `update()` to set:
+- `description` ← `product.name`
+- `unit` ← `product.unit`
+- `unit_price_net` ← `product.unit_price_net`
+- `vat_rate` ← `product.vat_rate` (must be 20, 10, 5, or 0)
+- `product_id` ← `product.id`
+
+Manual entry still possible — `product_id` stays empty for custom items.
+
+**Commit:** `feat(form): add ProductPicker with auto-fill for line items`
+
+### Batch 2 verification
 ```bash
-git add apps/web/src/components/invoices/invoice-form.tsx
-git commit -m "feat: add specific_symbol input to invoice form"
+cd "C:\Users\david\Documents\NW\Claude setup\VEXERA" && npx pnpm type-check && npx pnpm build
 ```
 
 ---
 
-### Task 4: Update invoice server actions for new fields
-
-**Files:**
-- Modify: `apps/web/src/lib/actions/invoices.ts`
-
-**Step 1: Read the actions file**
-
-Understand how `createInvoiceAction` and `updateInvoiceAction` build the insert/update object.
-
-**Step 2: Pass new fields through**
-
-Ensure `contact_id`, `invoice_type`, and `credit_note_for_id` are included in the insert/update objects when present. Ensure `product_id` is passed through for each invoice item.
-
-**Step 3: Verify**
-
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA/apps/web" && npx tsc --noEmit`
-
-**Step 4: Commit**
-
-```bash
-git add apps/web/src/lib/actions/invoices.ts
-git commit -m "feat: pass FK fields through invoice server actions"
-```
-
----
-
-## Phase B: Form Integration (Tasks 5–6)
-
-### Task 5: ContactPicker component
-
-**Files:**
-- Create: `apps/web/src/components/invoices/contact-picker.tsx`
-- Modify: `apps/web/src/components/invoices/invoice-form.tsx`
-
-**Step 1: Check if cmdk/Command component exists**
-
-Look for `components/ui/command.tsx` (shadcn Command component). If not present, add it:
-
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA/apps/web" && npx shadcn@latest add command popover`
-
-**Step 2: Create ContactPicker component**
-
-Create `contact-picker.tsx` — a Popover + Command combobox that:
-- Accepts `contactType: "supplier" | "client"` prop to filter contacts
-- Queries contacts service with debounced search
-- On selection: calls `onSelect(contact)` callback with full contact data
-- Shows contact name, IČO, and address in dropdown
-
-```tsx
-"use client"
-
-import { useState, useEffect } from "react"
-import { Check, ChevronsUpDown } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-
-interface Contact {
-  id: string
-  name: string
-  ico?: string | null
-  dic?: string | null
-  ic_dph?: string | null
-  street?: string | null
-  city?: string | null
-  zip?: string | null
-  country?: string | null
-  iban?: string | null
-  type: string
-}
-
-interface ContactPickerProps {
-  contactType: "supplier" | "client"
-  value?: string | null
-  onSelect: (contact: Contact) => void
-  organizationId: string
-}
-
-export function ContactPicker({ contactType, value, onSelect, organizationId }: ContactPickerProps) {
-  const [open, setOpen] = useState(false)
-  const [search, setSearch] = useState("")
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [selectedName, setSelectedName] = useState("")
-
-  // Fetch contacts with search — uses the contacts service
-  // Implementation will query supabase directly from client
-  // Filter by type: supplier contacts show type='supplier'|'both', client shows type='client'|'both'
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between">
-          {selectedName || `Select ${contactType}...`}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-full p-0">
-        <Command>
-          <CommandInput placeholder={`Search ${contactType}s...`} value={search} onValueChange={setSearch} />
-          <CommandList>
-            <CommandEmpty>No {contactType} found.</CommandEmpty>
-            <CommandGroup>
-              {contacts.map((contact) => (
-                <CommandItem
-                  key={contact.id}
-                  value={contact.name}
-                  onSelect={() => {
-                    onSelect(contact)
-                    setSelectedName(contact.name)
-                    setOpen(false)
-                  }}
-                >
-                  <Check className={cn("mr-2 h-4 w-4", value === contact.id ? "opacity-100" : "opacity-0")} />
-                  <div>
-                    <div className="font-medium">{contact.name}</div>
-                    {contact.ico && <div className="text-xs text-muted-foreground">IČO: {contact.ico}</div>}
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  )
-}
-```
-
-**Step 3: Integrate into invoice-form.tsx**
-
-Add ContactPicker above supplier fields in Section 2 and above customer fields in Section 3:
-- On contact select: auto-fill name, IČO, DIČ, IČ DPH, address fields, IBAN using `form.setValue()`
-- Set hidden `contact_id` field
-
-**Step 4: Verify**
-
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA/apps/web" && npx tsc --noEmit`
-
-**Step 5: Commit**
-
-```bash
-git add apps/web/src/components/invoices/contact-picker.tsx apps/web/src/components/invoices/invoice-form.tsx
-git commit -m "feat: add ContactPicker with auto-fill for supplier/customer"
-```
-
----
-
-### Task 6: ProductPicker component
-
-**Files:**
-- Create: `apps/web/src/components/invoices/product-picker.tsx`
-- Modify: `apps/web/src/components/invoices/invoice-items-editor.tsx`
-
-**Step 1: Create ProductPicker component**
-
-Similar pattern to ContactPicker — Popover + Command combobox that:
-- Queries products service with debounced search
-- On selection: calls `onSelect(product)` with product data
-- Shows product name, unit, price in dropdown
-
-```tsx
-"use client"
-
-import { useState } from "react"
-import { Check, ChevronsUpDown } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import {
-  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
-} from "@/components/ui/command"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-
-interface Product {
-  id: string
-  name: string
-  unit?: string | null
-  unit_price?: number | null
-  vat_rate?: number | null
-}
-
-interface ProductPickerProps {
-  value?: string | null
-  onSelect: (product: Product) => void
-  organizationId: string
-}
-
-export function ProductPicker({ value, onSelect, organizationId }: ProductPickerProps) {
-  const [open, setOpen] = useState(false)
-  const [search, setSearch] = useState("")
-  const [products, setProducts] = useState<Product[]>([])
-  const [selectedName, setSelectedName] = useState("")
-
-  // Fetch products with search from supabase
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between text-left">
-          {selectedName || "Select product..."}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-full p-0">
-        <Command>
-          <CommandInput placeholder="Search products..." value={search} onValueChange={setSearch} />
-          <CommandList>
-            <CommandEmpty>No product found.</CommandEmpty>
-            <CommandGroup>
-              {products.map((product) => (
-                <CommandItem
-                  key={product.id}
-                  value={product.name}
-                  onSelect={() => {
-                    onSelect(product)
-                    setSelectedName(product.name)
-                    setOpen(false)
-                  }}
-                >
-                  <Check className={cn("mr-2 h-4 w-4", value === product.id ? "opacity-100" : "opacity-0")} />
-                  <div>
-                    <div className="font-medium">{product.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {product.unit_price != null && `€${product.unit_price}`}
-                      {product.unit && ` / ${product.unit}`}
-                    </div>
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  )
-}
-```
-
-**Step 2: Integrate into invoice-items-editor.tsx**
-
-For each line item row, add a ProductPicker above or beside the description field:
-- On product select: auto-fill description, unit, unit_price_net, vat_rate
-- Set hidden `product_id` on the line item
-- Manual entry still works (product_id stays null)
-
-**Step 3: Verify**
-
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA/apps/web" && npx tsc --noEmit`
-
-**Step 4: Commit**
-
-```bash
-git add apps/web/src/components/invoices/product-picker.tsx apps/web/src/components/invoices/invoice-items-editor.tsx
-git commit -m "feat: add ProductPicker with auto-fill for invoice line items"
-```
-
----
-
-## Phase C: Print & PDF (Tasks 7–10)
+## Batch 3 — Phase C: Print & PDF (Tasks 7–10)
 
 ### Task 7: VAT breakdown by rate in print view
 
-**Files:**
-- Modify: `apps/web/src/app/(dashboard)/invoices/[id]/print/page.tsx`
+**Modify:** `apps/web/src/app/(dashboard)/invoices/[id]/print/page.tsx`
 
-**Step 1: Read the print view file**
+Replace the Totals section (lines 148-162) with a VAT breakdown:
 
-Identify the Totals section (around lines 148-162).
-
-**Step 2: Replace single VAT line with breakdown table**
-
-Group line items by `vat_rate`, compute net and VAT per rate, and render a table:
+1. Compute `vatMap: Map<rate, { net, vat }>` from `invoice.invoice_items`
+2. If multiple rates exist, render a breakdown table (Rate | Net Amount | VAT Amount)
+3. Show per-rate VAT lines and subtotal in the totals area
+4. Grand total at bottom with bold styling
 
 ```tsx
-{/* VAT breakdown by rate */}
 {(() => {
   const items = invoice.invoice_items ?? []
   const vatMap = new Map<number, { net: number; vat: number }>()
   for (const item of items) {
     const rate = Number(item.vat_rate)
     const prev = vatMap.get(rate) ?? { net: 0, vat: 0 }
-    const itemNet = Number(item.quantity) * Number(item.unit_price)
-    prev.net += itemNet
+    prev.net += Number(item.quantity) * Number(item.unit_price)
     prev.vat += Number(item.vat_amount)
     vatMap.set(rate, prev)
   }
@@ -439,292 +276,169 @@ Group line items by `vat_rate`, compute net and VAT per rate, and render a table
     <div className="border-t border-gray-900 pt-4 ml-auto w-72 text-sm">
       {breakdown.length > 1 && (
         <table className="w-full mb-2">
-          <thead>
-            <tr className="text-xs text-gray-500">
-              <th className="text-left font-normal pb-1">VAT rate</th>
-              <th className="text-right font-normal pb-1">Net</th>
-              <th className="text-right font-normal pb-1">VAT</th>
+          <thead><tr className="text-xs text-gray-500">
+            <th className="text-left font-normal pb-1">VAT rate</th>
+            <th className="text-right font-normal pb-1">Net amount</th>
+            <th className="text-right font-normal pb-1">VAT</th>
+          </tr></thead>
+          <tbody>{breakdown.map(([rate, { net, vat }]) => (
+            <tr key={rate} className="text-gray-600">
+              <td className="py-0.5">{rate}%</td>
+              <td className="py-0.5 text-right tabular-nums">{formatEur(net)}</td>
+              <td className="py-0.5 text-right tabular-nums">{formatEur(vat)}</td>
             </tr>
-          </thead>
-          <tbody>
-            {breakdown.map(([rate, { net, vat }]) => (
-              <tr key={rate} className="text-gray-600">
-                <td>{rate}%</td>
-                <td className="text-right">{net.toFixed(2)} €</td>
-                <td className="text-right">{vat.toFixed(2)} €</td>
-              </tr>
-            ))}
-          </tbody>
+          ))}</tbody>
         </table>
       )}
-      {/* Grand totals */}
-      <div className="flex justify-between border-t pt-1">
-        <span>Net total:</span>
-        <span>{Number(invoice.subtotal).toFixed(2)} €</span>
-      </div>
-      <div className="flex justify-between">
-        <span>VAT total:</span>
-        <span>{Number(invoice.tax).toFixed(2)} €</span>
-      </div>
-      <div className="flex justify-between font-bold text-base border-t pt-1 mt-1">
-        <span>Total:</span>
-        <span>{Number(invoice.total).toFixed(2)} €</span>
+      <div className="space-y-1">
+        <div className="flex justify-between text-gray-500">
+          <span>Subtotal (net)</span>
+          <span className="tabular-nums">{formatEur(Number(invoice.subtotal))}</span>
+        </div>
+        {breakdown.map(([rate, { vat }]) => (
+          <div key={rate} className="flex justify-between text-gray-500">
+            <span>VAT {rate}%</span>
+            <span className="tabular-nums">{formatEur(vat)}</span>
+          </div>
+        ))}
+        <div className="flex justify-between text-base font-bold border-t border-gray-900 pt-2">
+          <span>Total</span>
+          <span className="tabular-nums">{formatEur(Number(invoice.total))}</span>
+        </div>
       </div>
     </div>
   )
 })()}
 ```
 
-**Step 3: Verify**
-
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA/apps/web" && npx tsc --noEmit`
-
-**Step 4: Commit**
-
-```bash
-git add apps/web/src/app/(dashboard)/invoices/[id]/print/page.tsx
-git commit -m "feat: add VAT breakdown by rate to print view"
-```
+**Commit:** `feat(print): add VAT breakdown by rate in invoice print view`
 
 ---
 
 ### Task 8: Company logo in print view
 
-**Files:**
-- Create: `supabase/migrations/20240101000045_org_logo.sql`
-- Modify: `apps/web/src/app/(dashboard)/invoices/[id]/print/page.tsx`
+**Note:** `organizations` table already has `logo_url TEXT` (line 16 of `000003`). No migration needed.
 
-**Step 1: Create migration for logo_url**
+**Modify:** `apps/web/src/lib/data/invoices.ts`
 
-```sql
-ALTER TABLE public.organizations
-  ADD COLUMN IF NOT EXISTS logo_url TEXT;
+Update `getInvoice` select to join organization logo:
+```typescript
+.select("*, invoice_items(*), organization:organizations!organization_id(logo_url)")
 ```
 
-**Step 2: Add logo to print view header**
+Update `InvoiceDetail` type:
+```typescript
+export type InvoiceDetail = Database["public"]["Tables"]["invoices"]["Row"] & {
+  invoice_items: Database["public"]["Tables"]["invoice_items"]["Row"][]
+  organization?: { logo_url: string | null } | null
+}
+```
 
-In the print view, after the organization name, conditionally render the logo:
+**Modify:** `apps/web/src/app/(dashboard)/invoices/[id]/print/page.tsx`
 
+In the header section (lines 24-28), add logo before the INVOICE title:
 ```tsx
-{invoice.organization?.logo_url && (
-  <img
-    src={invoice.organization.logo_url}
-    alt="Company logo"
-    className="h-16 w-auto object-contain mb-2"
-  />
-)}
+<div className="flex items-center gap-4">
+  {invoice.organization?.logo_url && (
+    <img src={invoice.organization.logo_url} alt="Company logo"
+      className="h-16 w-auto object-contain" />
+  )}
+  <div>
+    <h1 className="text-3xl font-bold tracking-tight">INVOICE</h1>
+    <p className="text-lg font-mono text-gray-500 mt-1">{invoice.invoice_number}</p>
+  </div>
+</div>
 ```
 
-Note: The organization data needs to be fetched with the invoice. Check if the invoice query already joins organization data, and add `logo_url` to the select if needed.
-
-**Step 3: Verify**
-
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA/apps/web" && npx tsc --noEmit`
-
-**Step 4: Commit**
-
-```bash
-git add supabase/migrations/20240101000045_org_logo.sql apps/web/src/app/(dashboard)/invoices/[id]/print/page.tsx
-git commit -m "feat: add company logo support to print view"
-```
+**Commit:** `feat(print): render company logo in invoice print header`
 
 ---
 
-### Task 9: PAY by square QR code
+### Task 9: QR payment code (PAY by square)
 
-**Files:**
-- Create: `apps/web/src/lib/pay-by-square.ts`
-- Modify: `apps/web/src/app/(dashboard)/invoices/[id]/print/page.tsx`
-
-**Step 1: Install dependencies**
-
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA" && npx pnpm add qrcode lzma-js --filter web`
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA" && npx pnpm add -D @types/qrcode --filter web`
-
-**Step 2: Create PAY by square encoder**
-
-Create `apps/web/src/lib/pay-by-square.ts`:
-
-```typescript
-import QRCode from "qrcode"
-
-/**
- * PAY by square encoder for Slovak banking QR codes.
- *
- * Format: structured data → XZ/LZMA compress → Base32 encode → prepend header
- *
- * Simplified implementation using the "by square" standard:
- * https://bysquare.com/
- */
-
-interface PayBySquareData {
-  iban: string
-  amount: number
-  currency?: string
-  variableSymbol?: string
-  constantSymbol?: string
-  specificSymbol?: string
-  dueDate?: string // YYYYMMDD
-  beneficiaryName?: string
-  note?: string
-}
-
-function formatDate(dateStr?: string): string {
-  if (!dateStr) return ""
-  // Convert YYYY-MM-DD to YYYYMMDD
-  return dateStr.replace(/-/g, "")
-}
-
-/**
- * Build the PAY by square data string.
- * Fields are tab-separated, structure follows bysquare spec.
- */
-function buildPayString(data: PayBySquareData): string {
-  const fields = [
-    "1", // payment order count
-    "1", // regular payment
-    data.amount.toFixed(2),
-    data.currency ?? "EUR",
-    formatDate(data.dueDate),
-    data.variableSymbol ?? "",
-    data.constantSymbol ?? "",
-    data.specificSymbol ?? "",
-    "", // reference (empty)
-    data.note ?? "",
-    "1", // bank account count
-    data.iban.replace(/\s/g, ""),
-    "", // BIC (optional)
-    "0", // standing order
-    "0", // direct debit
-    data.beneficiaryName ?? "",
-    "", // beneficiary address line 1
-    "", // beneficiary address line 2
-  ]
-  return fields.join("\t")
-}
-
-/**
- * Generate a PAY by square QR code as a data URL.
- *
- * Note: Full PAY by square requires XZ compression + Base32 encoding + CRC.
- * This implementation generates the structured data and encodes it as QR.
- * For full spec compliance, lzma-js compression would be added.
- */
-export async function generatePayBySquareQR(data: PayBySquareData): Promise<string> {
-  const payString = buildPayString(data)
-
-  // For full PAY by square: compress with XZ, Base32 encode, add header + CRC
-  // Simplified: encode raw pay string as QR (compatible with many Slovak banking apps)
-  const dataUrl = await QRCode.toDataURL(payString, {
-    errorCorrectionLevel: "M",
-    margin: 2,
-    width: 200,
-  })
-
-  return dataUrl
-}
+**Install:**
+```bash
+cd "C:\Users\david\Documents\NW\Claude setup\VEXERA" && npx pnpm add qrcode lzma --filter @vexera/web && npx pnpm add -D @types/qrcode --filter @vexera/web
 ```
 
-**Step 3: Add QR to print view**
+**Create:** `apps/web/src/lib/pay-by-square.ts`
 
-In the print view payment section, add the QR code (only for invoices with IBAN):
+PAY by square encoder:
+1. Build tab-separated data string per spec (payment ID, count, type, amount, currency, due date, VS/KS/SS, ref, note, account count, IBAN, BIC, standing order, direct debit, beneficiary, address lines)
+2. LZMA compress via `lzma` package
+3. Prepend 2-byte big-endian uint16 of uncompressed length
+4. Base32hex encode (RFC 4648, no padding, alphabet `0-9A-V`)
+5. Prepend "0000" header (version + redundancy)
 
+Export: `encodePayBySquare(input: PayBySquareInput): Promise<string>`
+
+**Create:** `apps/web/src/components/invoices/qr-payment-code.tsx`
+
+Client component (`"use client"`):
+- Props: `amount, currency, iban, variableSymbol, constantSymbol, specificSymbol, dueDate, beneficiaryName, note`
+- `useEffect` calls `encodePayBySquare()` then `QRCode.toString(encoded, { type: "svg", width: 160 })`
+- Renders SVG via `dangerouslySetInnerHTML` with "PAY by square" label below
+- Returns `null` if no IBAN or on error
+- Shows skeleton while generating
+
+**Modify:** `apps/web/src/app/(dashboard)/invoices/[id]/print/page.tsx`
+
+After totals section, before notes, add QR code section (only for issued invoices with IBAN):
 ```tsx
-{invoice.supplier_iban && (
-  <div className="mt-4">
-    <p className="text-xs text-gray-500 mb-1">PAY by square</p>
-    {/* QR code rendered as img with data URL — generated server-side */}
-    <PayBySquareQR invoice={invoice} />
+{invoice.invoice_type === "issued" && invoice.supplier_iban && (
+  <div className="mt-6 flex items-start gap-4">
+    <QrPaymentCode
+      amount={Number(invoice.total)} currency={invoice.currency || "EUR"}
+      iban={invoice.supplier_iban} variableSymbol={invoice.variable_symbol ?? undefined}
+      constantSymbol={invoice.constant_symbol ?? undefined}
+      specificSymbol={invoice.specific_symbol ?? undefined}
+      dueDate={invoice.due_date} beneficiaryName={invoice.supplier_name}
+    />
+    <div className="text-xs text-gray-500 space-y-0.5 pt-2">
+      <p>Scan to pay via your banking app</p>
+      <p className="font-mono">{invoice.supplier_iban}</p>
+      {invoice.variable_symbol && <p>VS: {invoice.variable_symbol}</p>}
+    </div>
   </div>
 )}
 ```
 
-Create a client component `PayBySquareQR` that calls `generatePayBySquareQR` and renders the image.
-
-**Step 4: Verify**
-
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA/apps/web" && npx tsc --noEmit`
-
-**Step 5: Commit**
-
-```bash
-git add apps/web/src/lib/pay-by-square.ts apps/web/src/app/(dashboard)/invoices/[id]/print/page.tsx
-git commit -m "feat: add PAY by square QR code to print view"
-```
+**Commit:** `feat(print): add PAY by square QR payment code on invoice print`
 
 ---
 
-### Task 10: PDF generation with @react-pdf/renderer
+### Task 10: PDF generation via @react-pdf/renderer
 
-**Files:**
-- Create: `apps/web/src/components/invoices/invoice-pdf.tsx`
-- Create: `apps/web/src/app/api/invoices/[id]/pdf/route.ts`
-- Modify: `apps/web/src/components/invoices/invoice-actions.tsx`
-
-**Step 1: Install dependency**
-
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA" && npx pnpm add @react-pdf/renderer --filter web`
-
-**Step 2: Create invoice-pdf.tsx**
-
-React PDF document component that mirrors the print layout:
-
-```tsx
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer"
-
-// Define styles using StyleSheet.create()
-// Mirror the print view layout: header, supplier/customer, items table, VAT breakdown, totals
-
-interface InvoicePDFProps {
-  invoice: any // Use the same invoice type as print view
-}
-
-export function InvoicePDF({ invoice }: InvoicePDFProps) {
-  return (
-    <Document>
-      <Page size="A4" style={styles.page}>
-        {/* Header with invoice number and dates */}
-        {/* Supplier and Customer info */}
-        {/* Line items table */}
-        {/* VAT breakdown */}
-        {/* Payment info */}
-      </Page>
-    </Document>
-  )
-}
+**Install:**
+```bash
+cd "C:\Users\david\Documents\NW\Claude setup\VEXERA" && npx pnpm add @react-pdf/renderer --filter @vexera/web
 ```
 
-**Step 3: Create PDF API route**
+**Create:** `apps/web/src/components/invoices/invoice-pdf.tsx`
 
-Create `apps/web/src/app/api/invoices/[id]/pdf/route.ts`:
+React PDF document component using `@react-pdf/renderer`:
+- `Document > Page` with A4 size, padding 40, Helvetica font
+- Mirrors the print layout: header (INVOICE + number), supplier/customer columns, dates row, line items table with alternating row colors, VAT breakdown, totals, notes, signature lines
+- Uses `StyleSheet.create()` for all styling
+- Helper: `fmtEur(n)` for currency, `fmtDate(iso)` for date formatting
+- Export: `InvoicePdfDocument({ invoice: InvoiceDetail })`
 
+**Create:** `apps/web/src/app/api/invoices/[id]/pdf/route.ts`
+
+GET route handler:
 ```typescript
-import { NextRequest, NextResponse } from "next/server"
-import { renderToStream } from "@react-pdf/renderer"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
-import { InvoicePDF } from "@/components/invoices/invoice-pdf"
+import { renderToBuffer } from "@react-pdf/renderer"
+import { createElement } from "react"
+import { getInvoice } from "@/lib/data/invoices"
+import { InvoicePdfDocument } from "@/components/invoices/invoice-pdf"
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createServerSupabaseClient()
+  const invoice = await getInvoice(id)
+  if (!invoice) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  // Fetch invoice with items (same query as print view)
-  const { data: invoice, error } = await supabase
-    .from("invoices")
-    .select("*, invoice_items(*)")
-    .eq("id", id)
-    .single()
-
-  if (error || !invoice) {
-    return NextResponse.json({ error: "Invoice not found" }, { status: 404 })
-  }
-
-  const stream = await renderToStream(<InvoicePDF invoice={invoice} />)
-
-  return new NextResponse(stream as any, {
+  const buffer = await renderToBuffer(createElement(InvoicePdfDocument, { invoice }))
+  return new NextResponse(buffer, {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="invoice-${invoice.invoice_number}.pdf"`,
@@ -733,275 +447,155 @@ export async function GET(
 }
 ```
 
-**Step 4: Add "Download PDF" button**
+**Modify:** `apps/web/src/app/(dashboard)/invoices/[id]/page.tsx`
 
-In `invoice-actions.tsx`, add a download button:
-
+Add "PDF" download button next to the Print button:
 ```tsx
-<Button variant="outline" asChild>
-  <a href={`/api/invoices/${invoiceId}/pdf`} download>
-    <Download className="mr-2 h-4 w-4" />
-    Download PDF
+<Button variant="outline" size="sm" asChild>
+  <a href={`/api/invoices/${id}/pdf`} download>
+    <DownloadIcon className="size-4" /> PDF
   </a>
 </Button>
 ```
 
-**Step 5: Verify**
+Import `DownloadIcon` from lucide-react.
 
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA/apps/web" && npx tsc --noEmit`
+**Commit:** `feat(invoices): add PDF generation with @react-pdf/renderer`
 
-**Step 6: Commit**
-
+### Batch 3 verification
 ```bash
-git add apps/web/src/components/invoices/invoice-pdf.tsx apps/web/src/app/api/invoices/[id]/pdf/route.ts apps/web/src/components/invoices/invoice-actions.tsx
-git commit -m "feat: add PDF generation with @react-pdf/renderer"
+cd "C:\Users\david\Documents\NW\Claude setup\VEXERA" && npx pnpm type-check && npx pnpm build
 ```
 
 ---
 
-## Phase D: Actions & Stats (Tasks 11–14)
+## Batch 4 — Phase D: Actions & Stats (Tasks 11–14)
 
 ### Task 11: Credit note creation
 
-**Files:**
-- Modify: `apps/web/src/lib/actions/invoices.ts`
-- Modify: `apps/web/src/components/invoices/invoice-actions.tsx`
+**Modify:** `apps/web/src/lib/actions/invoices.ts`
 
-**Step 1: Create server action**
+Add `createCreditNoteAction(originalInvoiceId: string)`:
+1. Fetch original invoice with items, validate org ownership
+2. Validate status is `sent` or `paid`
+3. Generate invoice number with `generateInvoiceNumber(supabase, orgId, "credit_note")`
+4. Insert new invoice: `invoice_type: "credit_note"`, `credit_note_for_id: originalInvoiceId`, `status: "draft"`, all snapshot fields copied from original, amounts negated (`-Math.abs(...)`)
+5. Copy line items with negated `unit_price`, `vat_amount`, `total`
+6. Create audit log with action `CREDIT_NOTE_CREATED`
+7. Revalidate `/invoices` and original invoice path
+8. Return `{ id }` of new credit note
 
-Add `createCreditNoteAction` to `apps/web/src/lib/actions/invoices.ts`:
+**Modify:** `apps/web/src/components/invoices/invoice-actions.tsx`
 
-```typescript
-export async function createCreditNoteAction(originalInvoiceId: string) {
-  "use server"
-  const supabase = await createServerSupabaseClient()
+- Import `createCreditNoteAction` and `ReceiptIcon` from lucide-react
+- Add "Credit note" entry to `STATUS_ACTIONS` for `sent` and `paid` statuses
+- Handle `credit_note` in `handleAction`: call `createCreditNoteAction`, navigate to new credit note on success
 
-  // Fetch original invoice with items
-  const { data: original } = await supabase
-    .from("invoices")
-    .select("*, invoice_items(*)")
-    .eq("id", originalInvoiceId)
-    .single()
+**Commit:** `feat(invoices): add credit note creation from sent/paid invoices`
 
-  if (!original) throw new Error("Original invoice not found")
+---
 
-  // Create credit note — copy all fields, negate amounts
-  const { data: creditNote } = await supabase
-    .from("invoices")
-    .insert({
-      .../* copy relevant fields from original */,
-      invoice_type: "credit_note",
-      credit_note_for_id: originalInvoiceId,
-      invoice_number: `CN-${original.invoice_number}`,
-      subtotal: -Math.abs(original.subtotal),
-      tax: -Math.abs(original.tax),
-      total: -Math.abs(original.total),
-    })
-    .select()
-    .single()
+### Task 12: Send invoice by email (stub + UI)
 
-  // Copy line items with negated amounts
-  // Insert items with negative quantities/amounts
+**Modify:** `apps/web/src/lib/actions/invoices.ts`
 
-  revalidatePath("/invoices")
-  return creditNote
-}
-```
+Add `sendInvoiceEmailAction(invoiceId: string, recipientEmail: string)`:
+1. Validate invoice exists and belongs to org
+2. Insert `email_tracking` row with `status: "pending"`
+3. Create audit log with action `INVOICE_EMAIL_QUEUED`
+4. TODO comment for actual PDF generation + transactional email sending
+5. Return `{ error? }`
 
-**Step 2: Add "Create Credit Note" button**
+**Create:** `apps/web/src/components/invoices/send-email-dialog.tsx`
 
-In `invoice-actions.tsx`, add button visible only for paid/sent invoices:
+Dialog component:
+- `Dialog` with `DialogTrigger` ("Send email" button with `MailIcon`)
+- `DialogContent` with email input field and Send button
+- On submit: calls `sendInvoiceEmailAction`, shows toast
+- Uses `useTransition` for pending state
 
+**Modify:** `apps/web/src/app/(dashboard)/invoices/[id]/page.tsx`
+
+Add `SendEmailDialog` after the PDF button, conditionally shown for sent/paid invoices:
 ```tsx
-{(status === "paid" || status === "sent") && invoice.invoice_type !== "credit_note" && (
-  <Button variant="outline" onClick={() => createCreditNote(invoice.id)}>
-    <FileText className="mr-2 h-4 w-4" />
-    Create Credit Note
-  </Button>
+{(invoice.status === "sent" || invoice.status === "paid") && (
+  <SendEmailDialog invoiceId={id} invoiceNumber={invoice.invoice_number} />
 )}
 ```
 
-**Step 3: Verify**
+**Commit:** `feat(invoices): add send-by-email stub with dialog and tracking`
 
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA/apps/web" && npx tsc --noEmit`
+---
 
-**Step 4: Commit**
+### Task 13: Wire contact stats on invoice creation
 
+**Modify:** `apps/web/src/lib/actions/invoices.ts`
+
+Add helper `updateContactStats(supabase, contactId, invoiceTotal)`:
+- Fetch current `invoice_count` and `total_invoiced` from contacts table
+- Increment count by 1, add `Math.abs(total)` to `total_invoiced`
+- Wrapped in try/catch — non-critical, log errors but don't fail invoice creation
+
+Call in `createInvoiceAction` after invoice creation when `values.contact_id` is present.
+
+**Commit:** `feat(invoices): update contact stats on invoice creation`
+
+---
+
+### Task 14: Wire product stats on invoice creation
+
+**Modify:** `apps/web/src/lib/actions/invoices.ts`
+
+Add helper `updateProductStats(supabase, items)`:
+- Group items by `product_id` (skip items without one)
+- For each product: fetch current `times_invoiced` and `total_revenue`, increment
+- Wrapped in try/catch — non-critical
+
+Call in `createInvoiceAction` after invoice + items creation.
+
+**Commit:** `feat(invoices): update product stats on invoice creation`
+
+### Batch 4 verification
 ```bash
-git add apps/web/src/lib/actions/invoices.ts apps/web/src/components/invoices/invoice-actions.tsx
-git commit -m "feat: add credit note creation from existing invoices"
+cd "C:\Users\david\Documents\NW\Claude setup\VEXERA" && npx pnpm type-check && npx pnpm build
 ```
 
 ---
 
-### Task 12: Send invoice by email
+## Summary
 
-**Files:**
-- Create: `apps/web/src/lib/actions/invoice-email.ts`
-- Modify: `apps/web/src/components/invoices/invoice-actions.tsx`
+| Batch | Phase | Tasks | Key deliverables |
+|-------|-------|-------|-----------------|
+| 1 | A | 1–4 | Migration, specific_symbol field, date validation, schema updates |
+| 2 | B | 5–6 | ContactPicker, ProductPicker comboboxes with auto-fill |
+| 3 | C | 7–10 | VAT breakdown, logo, PAY by square QR, PDF generation |
+| 4 | D | 11–14 | Credit notes, email sending stub, contact/product stats |
 
-**Step 1: Read existing email infrastructure**
+## New dependencies
+- `@react-pdf/renderer` — PDF generation (Phase C)
+- `qrcode` + `@types/qrcode` — QR code rendering (Phase C)
+- `lzma` — LZMA compression for PAY by square (Phase C)
+- `cmdk` — Command palette for pickers (Phase B, via `shadcn add command`)
 
-Check what email sending infrastructure exists (look for email-related files, Resend, SES, etc.).
+## Files created (new)
+- `supabase/migrations/20240101000044_invoice_contact_product_fk.sql`
+- `apps/web/src/components/invoices/contact-picker.tsx`
+- `apps/web/src/components/invoices/product-picker.tsx`
+- `apps/web/src/lib/actions/contacts.ts`
+- `apps/web/src/lib/actions/products.ts`
+- `apps/web/src/lib/pay-by-square.ts`
+- `apps/web/src/components/invoices/qr-payment-code.tsx`
+- `apps/web/src/components/invoices/invoice-pdf.tsx`
+- `apps/web/src/app/api/invoices/[id]/pdf/route.ts`
+- `apps/web/src/components/invoices/send-email-dialog.tsx`
 
-**Step 2: Create send email action**
-
-```typescript
-"use server"
-
-export async function sendInvoiceEmailAction(invoiceId: string, recipientEmail?: string) {
-  const supabase = await createServerSupabaseClient()
-
-  // 1. Fetch invoice
-  // 2. Generate PDF (reuse the PDF generation logic)
-  // 3. Send email with PDF attachment using existing email infra
-  // 4. Create email_tracking row if tracking table exists
-  // 5. Update invoice status to "sent" if currently "draft"
-
-  revalidatePath("/invoices")
-}
-```
-
-**Step 3: Add "Send by Email" button**
-
-Add email dialog/button to invoice-actions.tsx with optional recipient email input.
-
-**Step 4: Verify**
-
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA/apps/web" && npx tsc --noEmit`
-
-**Step 5: Commit**
-
-```bash
-git add apps/web/src/lib/actions/invoice-email.ts apps/web/src/components/invoices/invoice-actions.tsx
-git commit -m "feat: add send invoice by email action"
-```
-
----
-
-### Task 13: Contact stats wiring
-
-**Files:**
-- Modify: `apps/web/src/lib/actions/invoices.ts`
-
-**Step 1: Read contacts migration for stats columns**
-
-Check `supabase/migrations/20240101000038_contacts.sql` for `invoice_count`, `total_invoiced`, `avg_payment_days` columns.
-
-**Step 2: Wire stats updates**
-
-In `createInvoiceAction`, after successful invoice creation:
-- If `contact_id` is set, increment `invoice_count` and add to `total_invoiced`
-
-In payment-related actions:
-- If contact exists, update `avg_payment_days`
-
-```typescript
-// After invoice creation
-if (contact_id) {
-  await supabase.rpc("increment_contact_stats", {
-    p_contact_id: contact_id,
-    p_amount: total,
-  })
-  // Or use raw update:
-  // UPDATE contacts SET invoice_count = invoice_count + 1, total_invoiced = total_invoiced + $amount WHERE id = $contact_id
-}
-```
-
-**Step 3: Verify**
-
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA/apps/web" && npx tsc --noEmit`
-
-**Step 4: Commit**
-
-```bash
-git add apps/web/src/lib/actions/invoices.ts
-git commit -m "feat: wire contact stats on invoice creation"
-```
-
----
-
-### Task 14: Product stats wiring
-
-**Files:**
-- Modify: `apps/web/src/lib/actions/invoices.ts`
-
-**Step 1: Read products migration for stats columns**
-
-Check `supabase/migrations/20240101000039_products.sql` for `times_invoiced`, `total_revenue` columns.
-
-**Step 2: Wire stats updates**
-
-In `createInvoiceAction`, after successful invoice + items creation:
-- For each line item with `product_id`, increment `times_invoiced` and add line total to `total_revenue`
-
-```typescript
-// After invoice items creation
-for (const item of items) {
-  if (item.product_id) {
-    await supabase
-      .from("products" as any)
-      .update({
-        times_invoiced: supabase.rpc("increment", { row_id: item.product_id }),
-        // Or raw SQL increment
-      })
-      .eq("id", item.product_id)
-  }
-}
-```
-
-**Step 3: Verify**
-
-Run: `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA/apps/web" && npx tsc --noEmit`
-
-**Step 4: Commit**
-
-```bash
-git add apps/web/src/lib/actions/invoices.ts
-git commit -m "feat: wire product stats on invoice creation"
-```
-
----
-
-## Verification
-
-After all tasks:
-
-1. `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA/apps/web" && npx tsc --noEmit` — zero type errors
-2. `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA/apps/web" && npx pnpm build` — successful build
-3. `cd "c:/Users/david/Documents/NW/Claude setup/VEXERA/apps/web" && npx pnpm lint` — no new lint errors
-4. Manual test: create invoice with contact picker, product picker, print view with QR/VAT breakdown
-
-## Batches for Execution
-
-| Batch | Tasks | Theme |
-|-------|-------|-------|
-| 1 | 1–4 | Database & Schema |
-| 2 | 5–6 | Form Integration |
-| 3 | 7–10 | Print & PDF |
-| 4 | 11–14 | Actions & Stats |
-
-## New Dependencies
-
-| Package | Purpose | Phase |
-|---------|---------|-------|
-| `@react-pdf/renderer` | PDF generation | C |
-| `qrcode` + `@types/qrcode` | QR code for PAY by square | C |
-| `lzma-js` | XZ compression for PAY by square | C |
-
-## Key Files Reference
-
-| Area | File |
-|------|------|
-| Invoice form | `apps/web/src/components/invoices/invoice-form.tsx` |
-| Line items editor | `apps/web/src/components/invoices/invoice-items-editor.tsx` |
-| Invoice schema | `apps/web/src/lib/validations/invoice.schema.ts` |
-| Invoice actions | `apps/web/src/lib/actions/invoices.ts` |
-| Invoice UI actions | `apps/web/src/components/invoices/invoice-actions.tsx` |
-| Print view | `apps/web/src/app/(dashboard)/invoices/[id]/print/page.tsx` |
-| Contacts service | `apps/web/src/lib/services/contacts.service.ts` |
-| Products service | `apps/web/src/lib/services/products.service.ts` |
-| Invoices migration | `supabase/migrations/20240101000008_invoices.sql` |
-| Invoice items migration | `supabase/migrations/20240101000009_invoice_items.sql` |
-| Contacts migration | `supabase/migrations/20240101000038_contacts.sql` |
-| Products migration | `supabase/migrations/20240101000039_products.sql` |
+## Files modified
+- `apps/web/src/lib/validations/invoice.schema.ts`
+- `apps/web/src/components/invoices/invoice-form.tsx`
+- `apps/web/src/components/invoices/invoice-items-editor.tsx`
+- `apps/web/src/app/(dashboard)/invoices/[id]/print/page.tsx`
+- `apps/web/src/lib/data/invoices.ts`
+- `apps/web/src/lib/actions/invoices.ts`
+- `apps/web/src/components/invoices/invoice-actions.tsx`
+- `apps/web/src/app/(dashboard)/invoices/[id]/page.tsx`
+- `packages/types/src/index.ts`

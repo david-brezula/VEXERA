@@ -1,7 +1,7 @@
 "use client";
 
 import { Upload, Cpu, CheckCircle } from "lucide-react";
-import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
+import { useIntersectionObserver } from "@/shared/hooks/use-intersection-observer";
 import { cn } from "@/lib/utils";
 
 const steps = [

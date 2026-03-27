@@ -14,7 +14,8 @@ import {
   getRetentionPolicies,
   getExpiringDocuments,
   setRetentionPolicies,
-} from "@/lib/services/archive.service"
+} from "@/features/settings/archive.service"
+import { verifyOrgMembership, forbiddenResponse } from "@/shared/lib/api-utils"
 
 export async function GET(request: Request) {
   try {
@@ -27,6 +28,9 @@ export async function GET(request: Request) {
     if (!organizationId) {
       return NextResponse.json({ error: "organization_id is required" }, { status: 400 })
     }
+
+    const membership = await verifyOrgMembership(supabase, user.id, organizationId)
+    if (!membership) return forbiddenResponse()
 
     const type = url.searchParams.get("type") ?? "policies"
 
@@ -57,6 +61,9 @@ export async function POST(request: Request) {
     if (!organizationId) {
       return NextResponse.json({ error: "organization_id is required" }, { status: 400 })
     }
+
+    const membership = await verifyOrgMembership(supabase, user.id, organizationId)
+    if (!membership) return forbiddenResponse()
 
     const created = await setRetentionPolicies(supabase, organizationId)
     return NextResponse.json({ data: { created } })

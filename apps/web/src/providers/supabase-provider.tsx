@@ -19,29 +19,35 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      const currentUser = session?.user ?? null
-      setUser(currentUser)
-      setIsLoading(false)
+    let subscription: { unsubscribe: () => void } | null = null
 
-      // Upsert profile to handle users created before the DB trigger was deployed
-      if (currentUser) {
-        supabase.from("profiles").upsert(
-          {
-            id: currentUser.id,
-            email: currentUser.email ?? "",
-            full_name: currentUser.user_metadata?.full_name ?? null,
-            avatar_url: currentUser.user_metadata?.avatar_url ?? null,
-          },
-          { onConflict: "id" }
-        )
-      }
-    })
+    try {
+      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        const currentUser = session?.user ?? null
+        setUser(currentUser)
+        setIsLoading(false)
+
+        // Upsert profile to handle users created before the DB trigger was deployed
+        if (currentUser) {
+          supabase.from("profiles").upsert(
+            {
+              id: currentUser.id,
+              email: currentUser.email ?? "",
+              full_name: currentUser.user_metadata?.full_name ?? null,
+              avatar_url: currentUser.user_metadata?.avatar_url ?? null,
+            },
+            { onConflict: "id" }
+          )
+        }
+      })
+      subscription = data.subscription
+    } catch {
+      // Supabase may be unreachable — gracefully degrade
+      setIsLoading(false)
+    }
 
     return () => {
-      subscription.unsubscribe()
+      subscription?.unsubscribe()
     }
   }, [supabase])
 

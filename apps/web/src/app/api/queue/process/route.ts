@@ -14,9 +14,9 @@
 
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { dequeueJob, markJobComplete, markJobFailed } from "@/lib/services/queue.service"
-import type { Job } from "@/lib/services/queue.service"
-import { sendInvoiceEmailSystem } from "@/lib/services/invoice-email.service"
+import { dequeueJob, markJobComplete, markJobFailed } from "@/shared/services/queue.service"
+import type { Job } from "@/shared/services/queue.service"
+import { sendInvoiceEmailSystem } from "@/features/invoices/email.service"
 
 // ─── Job Handlers Registry ──────────────────────────────────────────────────
 

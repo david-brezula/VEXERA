@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { processRecurringInvoices } from "@/lib/services/recurring-invoice.service"
+import { processRecurringInvoices } from "@/features/invoices/recurring.service"
 
 export async function POST(req: NextRequest) {
   // Validate CRON_SECRET

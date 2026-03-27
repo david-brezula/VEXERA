@@ -190,12 +190,16 @@ export function calculateInsurance(
     }
   }
 
+  // Personal status flags
+  const isSocialExempt = profile.isPensioner === true
+  const skipHealthMinimum = profile.isStudent === true || profile.hasOtherEmployment === true
+
   // First-year SZČO: no social insurance obligation (health is always mandatory)
   if (profile.isFirstYear && !profile.hasSocialInsurance) {
     const minHealth = profile.isDisabled ? ins.minHealthMonthlyDisabled : ins.minHealthMonthly
     return {
       socialMonthly: 0,
-      healthMonthly: minHealth,
+      healthMonthly: skipHealthMinimum ? 0 : minHealth,
     }
   }
 
@@ -211,21 +215,21 @@ export function calculateInsurance(
 
   // Low-income SZČO → osobitný vymeriavací základ
   if (income <= ins.osobitnyIncomeThreshold) {
+    const rawHealth = round2(ins.osobitnyVymeriavaciZaklad * healthRate)
     return {
-      socialMonthly: round2(ins.osobitnyVymeriavaciZaklad * ins.socialRate),
-      healthMonthly: Math.max(
-        minHealth,
-        round2(ins.osobitnyVymeriavaciZaklad * healthRate),
-      ),
+      socialMonthly: isSocialExempt ? 0 : round2(ins.osobitnyVymeriavaciZaklad * ins.socialRate),
+      healthMonthly: skipHealthMinimum ? rawHealth : Math.max(minHealth, rawHealth),
     }
   }
 
   // Calculate from vymeriavací základ, clamp to max
   const clampedBase = Math.min(monthlyBase, ins.maxVymeriavaciZaklad)
+  const rawSocial = round2(clampedBase * ins.socialRate)
+  const rawHealth = round2(clampedBase * healthRate)
 
   return {
-    socialMonthly: Math.max(ins.minSocialMonthly, round2(clampedBase * ins.socialRate)),
-    healthMonthly: Math.max(minHealth, round2(clampedBase * healthRate)),
+    socialMonthly: isSocialExempt ? 0 : Math.max(ins.minSocialMonthly, rawSocial),
+    healthMonthly: skipHealthMinimum ? rawHealth : Math.max(minHealth, rawHealth),
   }
 }
 

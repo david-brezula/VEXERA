@@ -4,7 +4,7 @@
 
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { resolveHealthCheckIssue } from "@/lib/services/health-check.service"
+import { resolveHealthCheckIssue } from "@/features/reports/health-checks/service"
 
 export async function PATCH(
   _request: Request,
